@@ -42,16 +42,12 @@ jobs:
         run: |
           python scripts/automacao_ligacoes.py
 
-      - name: Fazer upload dos relatórios e áudios gerados
+      - - name: Fazer upload dos áudios e relatórios (Artifacts)
         uses: actions/upload-artifact@v4
         if: always()
         with:
           name: relatorio-e-audios-${{ github.run_id }}
-          path: |
-            ligacoes/**/*.md
-            ligacoes/**/*.csv
-            ligacoes/**/*.wav
-            ligacoes/**/*.mp3
+          path: ligacoes/**
           retention-days: 14
 
       - name: Salvar relatório no repositório (opcional)
