@@ -48,7 +48,7 @@
 - **Arquivo:** `ligacao_2003_p1_15_20260908-152555-2003-553732716122-1788891951.42166-1788891955.wav`
 
 **Transcrição do Áudio:**
-> Ata cada um boa para a gente. Um boa tarde tudo bem? Tudo jovem você bem. Tudo jovem eu também graças a Deus. Eu sou a senão da Fiberati Tank que tem esse que é um precisante e possui um tempete dessa vez. Um bom minutinho! Um bom dia. Um bom dia. Um bom dia. Um bom dia. Um bom dia. Um bom dia. Um bom dia. Um bom dia. Um bom dia. Tudo jovem eu também graças a Deus. Eu sou a senão da Fiberati. Eu sou a senão da Fiberati Tank que tem esse. Ah sim, sim, sim. Não faz de trocar de atenção de feita dessa vez. O Fernando está controlado ainda, sabe? Depois se me manda o secotado no WhatsApp que só está dão olhada com a confirmada depois, agora que eu te re-pensas a gente se faça o pedido. E aí, que toda no nosso 4º e 10º, o ½ é um di-tion. O ½ é um di-tion. Por ter nele, sabe? O de mandar agora a sabela de feitas atualizadas. Tá bom, obrigado. Aí eu pique do nico também que há 1000 por 100. Então, porque você só repoto o secotado também. Tá bom. Obrigada, viu. Obrigada, Deus. Ciao. Ciao.
+> Ata cada um boa para a gente. Um boa tarde tudo bem? Tudo jovem você bem. Tudo jovem eu também graças a Deus. Eu sou a senão da Fiberati Tank que tem esse que é um precisante e possui um tempete dessa vez. Um bom minutinho! Um bom dia. Um bom dia. Um bom dia. Um bom dia. Olá. Um bom dia. Muito bem. Muito bem tudo boa assim você. Tudo jovem eu também graças a Deus. Eu sou a senão da Fiberati. Ah sim, sim, sim. Não foi de antigo que precisam de pesca desse veio. O Fernando está controlado ainda, sabe? Depois se me manda o sacatálogo no WhatsApp, que só está dão olhada com a confirmada depois. Agora que eu te re-peciso, não te faço pedir. A gente se fala sobre o nosso fato do 10, ou no meio um de tio. Meia um de tio. Por que nem é do saco? Eu te mando aí agora a sabela de que foi atualizada. Tá bom, obrigado. Eu peguei do vídeo também, que é muito fácil. É só que você só repoto ou se você quiser. Tá bom. Obrigada, viu? Obrigada, viu? Obrigada, adiante. Tchau.
 
 ---
 
@@ -136,7 +136,7 @@
 - **Arquivo:** `ligacao_2005_p1_16_20260908-165605-2005-5531991887688-1788897362.42829-1788897365.wav`
 
 **Transcrição do Áudio:**
-> a gente está fechando a carga novamente para a exigência, como é que está sua Falcon? Só para o transco. Um discurso. A gente está cobrou a moçada do tanque ID também, está fechando a 75 R$ de 1,10? Sim. Pacho, pásseis. E agora? Vamos ver o que tem. O que tem? Vamos ver o que tem. O que tem? O que tem? O que tem? O que tem? O que tem? O que tem? O que tem? O que tem? O que tem? O que tem? O que tem? O que tem? O que tem? Similarly Obama sabsando? Maraab würde ficar dji
+> nicas, mas é vir ars.
 
 ---
 
@@ -160,7 +160,7 @@
 - **Arquivo:** `ligacao_2005_p1_22_20260908-162632-2005-5531971241617-1788895587.42685-1788895592.wav`
 
 **Transcrição do Áudio:**
-> E no sé fim e no sério e no sério e o irка e oρωon. Any email deawanuna.com
+> ele powdered no cênere do lugar da Bismновel que a Hollon vai ficar eradicando o albreio.
 
 ---
 
