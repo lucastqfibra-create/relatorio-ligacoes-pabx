@@ -5,9 +5,16 @@ import pandas as pd
 from playwright.sync_api import sync_playwright
 import whisper
 
-PBX_URL = os.getenv("PBX_URL", "http://177.10.116.84/")
-PBX_USER = os.getenv("PBX_USER", "lucas")
-PBX_PASSWORD = os.getenv("PBX_PASSWORD", "lcsu251535")
+# Sanitização e padronização das variáveis de ambiente
+raw_url = os.getenv("PBX_URL", "http://177.10.116.84/").strip().strip('"\'')
+if not raw_url.startswith(("http://", "https://")):
+    raw_url = f"http://{raw_url}"
+if not raw_url.endswith("/"):
+    raw_url = f"{raw_url}/"
+
+PBX_URL = raw_url
+PBX_USER = os.getenv("PBX_USER", "lucas").strip().strip('"\'')
+PBX_PASSWORD = os.getenv("PBX_PASSWORD", "lcsu251535").strip().strip('"\'')
 
 RAMAIS = [
     {"ramal": "2003", "nome": "Fernanda"},
@@ -165,7 +172,7 @@ def gerar_relatorio(dados_por_ramal):
         csv_path = os.path.join(BASE_DOWNLOAD_DIR, f"relatorio_ligacoes_{DATA_DIR}.csv")
         df.to_csv(csv_path, index=False, encoding="utf-8-sig")
 
-    print(f"[+] Relatório consolidado em {relatorio_md_path}")
+    print(f"[+] Relatório consolidado salvo em: {relatorio_md_path}")
 
 
 def main():
