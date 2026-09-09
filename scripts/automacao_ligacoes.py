@@ -34,6 +34,9 @@ PBX_URL = extrair_url(os.getenv("PBX_URL", "177.10.116.84"))
 PBX_USER = limpar_credencial("PBX_USER", "lucas")
 PBX_PASSWORD = limpar_credencial("PBX_PASSWORD", "lcsu251535")
 
+# URL direta descoberta no HTML do menu (report.calls.detailed)
+URL_REGISTROS_DIRETO = f"{PBX_URL}pbxip/framework/container.php?token=MAIN/cmVwb3J0LmNhbGxzLmRldGFpbGVk"
+
 RAMAIS = [
     {"ramal": "2003", "nome": "Fernanda"},
     {"ramal": "2005", "nome": "Julia"}
@@ -44,38 +47,16 @@ DATA_DIR = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
 BASE_DOWNLOAD_DIR = os.path.join(os.getcwd(), "ligacoes", DATA_DIR)
 
 
-def obter_frame_relatorio(page):
-    """Retorna o frame que possui o campo #src ou #confirm."""
-    for f in page.frames:
-        try:
-            if f.locator("#src").count() > 0 or f.locator("#confirm").count() > 0:
-                return f
-        except Exception:
-            pass
-    return page
-
-
 def realizar_login(page):
-    print(f"[*] Acessando central PABX em {PBX_URL}...")
+    print(f"[*] Acessando {PBX_URL} para autenticação...")
     page.goto(PBX_URL, timeout=60000, wait_until="networkidle")
-    time.sleep(3)
+    time.sleep(2)
 
-    # 1. Verifica se já está logado e com a tela aberta (#src presente)
-    for f in page.frames:
-        try:
-            if f.locator("#src").count() > 0 and f.locator("#src").is_visible():
-                print("[+] Tela de relatório (#src) já está aberta. Pulando login.")
-                return
-        except Exception:
-            pass
-
-    # 2. Aguarda até 12 segundos para os inputs de login carregarem no frame
     alvo = None
     user_input = None
     pass_input = None
 
-    print("[*] Aguardando carregamento dos formulários de login...")
-    for _ in range(12):
+    for _ in range(10):
         for f in [page] + page.frames:
             p = f.locator("input[type='password'], input[name*='pass'], input[id*='pass']").first
             u = f.locator("input[name*='user'], input[name*='login'], input[id*='user'], input:not([type='password']):not([type='hidden'])").first
@@ -91,7 +72,7 @@ def realizar_login(page):
         time.sleep(1)
 
     if not user_input or not pass_input:
-        print("[!] Campos de login não encontrados. Verificando se já está autenticado...")
+        print("[!] Formulário de login não visível (sessão já ativa).")
         return
 
     print("[*] Preenchendo credenciais...")
@@ -109,65 +90,27 @@ def realizar_login(page):
 
     time.sleep(4)
     page.wait_for_load_state("networkidle")
-    print("[+] Login efetuado com sucesso.")
+    print("[+] Autenticação finalizada.")
 
 
-def navegar_para_registro_ligacoes(page):
-    print("[*] Verificando acesso à tela de Registro de Ligações...")
-    
-    # Se #src já estiver visível, já estamos no relatório
-    for _ in range(3):
-        frame = obter_frame_relatorio(page)
-        if frame.locator("#src").count() > 0 and frame.locator("#src").is_visible():
-            print("[+] Tela de Registro de Ligações pronta.")
-            return
-        time.sleep(1)
+def acessar_tela_registros(page):
+    """Acessa diretamente o módulo container.php de registros de ligações."""
+    print(f"[*] Acessando módulo de registros direto: {URL_REGISTROS_DIRETO}...")
+    page.goto(URL_REGISTROS_DIRETO, timeout=60000, wait_until="networkidle")
+    time.sleep(3)
 
-    # Tentativa 1: Atalho direto na página inicial
+    # Se a página foi carregada diretamente, o frame alvo é a própria page
+    if page.locator("#src").count() > 0 or page.locator("#confirm").count() > 0:
+        print("[+] Tela de registros carregada diretamente na página principal!")
+        return page
+
+    # Caso ainda esteja dentro de algum frame (ex: container)
     for f in page.frames:
-        atalho = f.locator("text=/REGISTROS DE LIGA[CÇ][OÕ]ES/i, a:has-text('REGISTROS DE LIGAÇÕES'), a:has-text('Registros de ligações')").first
-        try:
-            if atalho.count() > 0 and atalho.is_visible():
-                print("[+] Clicando no atalho direto 'REGISTROS DE LIGAÇÕES'...")
-                atalho.click()
-                time.sleep(3)
-                page.wait_for_load_state("networkidle")
-                return
-        except Exception:
-            pass
+        if f.locator("#src").count() > 0 or f.locator("#confirm").count() > 0:
+            print(f"[+] Tela de registros localizada dentro do frame '{f.name}'!")
+            return f
 
-    # Tentativa 2: Menu lateral
-    print("[*] Navegando via menu lateral...")
-    for f in page.frames:
-        rel = f.locator("text=/^Relat[oó]rios/i, a:has-text('Relatórios'), span:has-text('Relatórios')").first
-        try:
-            if rel.count() > 0 and rel.is_visible():
-                rel.click()
-                time.sleep(1)
-                break
-        except Exception:
-            pass
-
-    for f in page.frames:
-        lig = f.locator("text=/^Liga[cç][oõ]es/i, a:has-text('Ligações')").first
-        try:
-            if lig.count() > 0 and lig.is_visible():
-                lig.click()
-                time.sleep(1)
-                break
-        except Exception:
-            pass
-
-    for f in page.frames:
-        reg = f.locator("text=/Registro de liga[cç][oõ]es/i, a:has-text('Registro de ligações')").first
-        try:
-            if reg.count() > 0 and reg.is_visible():
-                reg.click()
-                time.sleep(3)
-                page.wait_for_load_state("networkidle")
-                break
-        except Exception:
-            pass
+    return page
 
 
 def converter_gsm_para_wav(caminho_gsm):
@@ -185,33 +128,32 @@ def converter_gsm_para_wav(caminho_gsm):
         return caminho_gsm
 
 
-def filtrar_e_baixar_ligacoes(page, ramal_info):
+def filtrar_e_baixar_ligacoes(page, escopo, ramal_info):
     ramal = ramal_info["ramal"]
     nome = ramal_info["nome"]
     pasta_destino = os.path.join(BASE_DOWNLOAD_DIR, f"{ramal}_{nome}")
     os.makedirs(pasta_destino, exist_ok=True)
 
     print(f"\n[*] =================== PROCESSANDO RAMAL {ramal} ({nome}) ===================")
-    frame = obter_frame_relatorio(page)
 
-    # 1. Ajusta campos de data para a data de ontem (padrão DD/MM/AAAA)
-    for inp in frame.locator("input[type='text'], input:not([type])").all():
+    # 1. Atualizar campos de data (De e Até) para ontem
+    for inp in escopo.locator("input[type='text'], input:not([type])").all():
         try:
             val = inp.input_value()
             if re.match(r"^\d{2}/\d{2}/\d{4}$", val):
-                print(f"[*] Ajustando data ({val}) para {DATA_ONTEM_BR}...")
+                print(f"[*] Atualizando data de '{val}' para '{DATA_ONTEM_BR}'...")
                 inp.fill(DATA_ONTEM_BR)
         except Exception:
             pass
 
-    # 2. Preenche o campo #src (Origem) conforme gravado no DevTools
-    campo_origem = frame.locator("#src")
+    # 2. Preencher Origem (#src)
+    campo_origem = escopo.locator("#src")
     if campo_origem.count() > 0:
         print(f"[*] Preenchendo Origem (#src): {ramal}")
         campo_origem.fill(ramal)
 
-    # 3. Seleciona Tipo 'Saínte'
-    select_tipo = frame.locator("select").first
+    # 3. Selecionar Tipo 'Saínte'
+    select_tipo = escopo.locator("select").first
     if select_tipo.count() > 0:
         try:
             select_tipo.select_option(label="Saínte")
@@ -222,30 +164,34 @@ def filtrar_e_baixar_ligacoes(page, ramal_info):
             except Exception:
                 pass
 
-    # 4. Clica no botão #confirm (Consultar) conforme gravado no DevTools
-    btn_confirm = frame.locator("#confirm")
+    # 4. Clicar no botão Consultar (#confirm)
+    btn_confirm = escopo.locator("#confirm")
     if btn_confirm.count() > 0:
         print("[*] Clicando no botão Consultar (#confirm)...")
         btn_confirm.click()
 
     time.sleep(5)
     page.wait_for_load_state("networkidle")
-    frame = obter_frame_relatorio(page)
 
-    # 5. Coleta as chamadas com gravação por página
+    # 5. Baixar as gravações navegando pelas páginas
     chamadas_baixadas = []
     pagina_atual = 1
     max_paginas = 6
 
     while pagina_atual <= max_paginas:
         print(f"[*] Verificando chamadas na página {pagina_atual}...")
-        linhas = frame.locator("tr[id^='tr_']").all()
+        
+        # Localiza as linhas tr_ da tabela
+        linhas = escopo.locator("tr[id^='tr_']").all()
+        if len(linhas) == 0:
+            linhas = [r for r in escopo.locator("table tr").all() if r.locator("td").count() >= 8]
+        
         print(f"[*] Total de linhas encontradas na página {pagina_atual}: {len(linhas)}")
 
         for idx, row in enumerate(linhas):
             try:
-                # Ícone de nota musical na 10ª coluna conforme DevTools: td:nth-of-type(10) > a > img
-                icone_audio = row.locator("td:nth-of-type(10) > a > img, td:nth-child(10) > a > img").first
+                # Ícone de nota musical na 10ª coluna
+                icone_audio = row.locator("td:nth-of-type(10) > a > img, td:nth-child(10) > a > img, td:last-child a > img").first
 
                 if icone_audio.count() > 0 and icone_audio.is_visible():
                     tds = [td.inner_text().strip() for td in row.locator("td").all()]
@@ -256,18 +202,18 @@ def filtrar_e_baixar_ligacoes(page, ramal_info):
 
                     print(f"    [+] Gravação detectada: {data_hora} | Destino: {destino} | Duração: {duracao}")
 
-                    # 1. Clica na nota musical para abrir a caixinha
+                    # 1. Clica na nota musical
                     icone_audio.click()
                     time.sleep(1)
 
-                    # 2. Clica no botão Salvar conforme o DevTools: td:nth-of-type(10) > div img
+                    # 2. Clica no botão Salvar que abre na célula
                     btn_salvar = row.locator("td:nth-of-type(10) > div img, td:nth-child(10) > div img, img[alt*='Salvar' i], a:has(img[alt*='Salvar' i])").first
                     
                     with page.expect_download(timeout=15000) as download_info:
                         if btn_salvar.count() > 0 and btn_salvar.is_visible():
                             btn_salvar.click()
                         else:
-                            frame.locator("img[alt*='Salvar' i], a:has-text('Salvar')").first.click()
+                            escopo.locator("img[alt*='Salvar' i], a:has-text('Salvar')").first.click()
 
                     download = download_info.value
                     nome_original = download.suggested_filename
@@ -290,15 +236,14 @@ def filtrar_e_baixar_ligacoes(page, ramal_info):
             except Exception as e:
                 pass
 
-        # Paginação: avança para a próxima página no botão '>'
-        btn_proximo = frame.locator("a:has-text('>'), button:has-text('>'), input[value='>']").first
+        # Paginação: avança para a próxima página clicando no '>'
+        btn_proximo = escopo.locator("a:has-text('>'), button:has-text('>'), input[value='>']").first
         try:
             if btn_proximo.count() > 0 and btn_proximo.is_visible() and btn_proximo.is_enabled():
                 print("[*] Avançando para a próxima página de chamadas...")
                 btn_proximo.click()
                 time.sleep(3)
                 page.wait_for_load_state("networkidle")
-                frame = obter_frame_relatorio(page)
                 pagina_atual += 1
             else:
                 break
@@ -397,10 +342,10 @@ def main():
 
         try:
             realizar_login(page)
-            navegar_para_registro_ligacoes(page)
+            escopo = acessar_tela_registros(page)
 
             for ramal_info in RAMAIS:
-                chamadas_baixadas = filtrar_e_baixar_ligacoes(page, ramal_info)
+                chamadas_baixadas = filtrar_e_baixar_ligacoes(page, escopo, ramal_info)
                 chamadas_transcritas = transcrever_chamadas(chamadas_baixadas)
                 dados_consolidados.append({
                     "ramal": ramal_info["ramal"],
