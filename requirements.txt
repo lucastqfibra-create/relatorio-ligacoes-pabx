@@ -1,0 +1,4 @@
+playwright==1.46.0
+openai-whisper
+pandas
+python-dotenv
