@@ -52,7 +52,8 @@ def realizar_login(page):
     time.sleep(2)
 
     alvo = None
-    user_input, pass_input = None, None
+    user_input = None
+    pass_input = None
 
     for _ in range(10):
         for f in [page] + page.frames:
@@ -122,7 +123,6 @@ def converter_gsm_para_wav(caminho_gsm):
 
 
 def detectar_total_paginas(escopo):
-    """Detecta o total de páginas da paginação (ex: '1 / 5')."""
     total = 1
     elementos = escopo.locator(".pcontrol, .pDiv, .pGroup, span:has-text('/'), div:has-text('/')").all()
     for el in elementos:
@@ -138,43 +138,74 @@ def detectar_total_paginas(escopo):
 
 
 def avancar_pagina_flexigrid(page, escopo, proxima_pagina):
-    """Dispara a mudança de página na tabela do Flexigrid."""
+    """Avança para a próxima página no Flexigrid por múltiplos métodos."""
     print(f"[*] Solicitando mudança para a página {proxima_pagina}...")
 
-    res_js = escopo.evaluate(f"""() => {{
-        // 1. Tenta clicar no botão .pNext do Flexigrid
-        let btnNext = document.querySelector('.pNext, .pButton.pNext, div.pNext, .pGroup .pNext');
-        if (btnNext && !btnNext.classList.contains('pDisable')) {{
-            btnNext.click();
-            return 'pNext clicado';
-        }}
-        // 2. Localiza o grupo de texto '1 / X' e clica no elemento seguinte
-        let all = Array.from(document.querySelectorAll('*'));
-        let pEl = all.find(e => /\\d+\\s*\\/\\s*\\d+/.test(e.innerText) && e.children.length <= 2);
-        if (pEl) {{
-            let pGroup = pEl.closest('.pGroup') || pEl.parentElement;
-            if (pGroup && pGroup.nextElementSibling) {{
-                let target = pGroup.nextElementSibling.querySelector('.pButton, div, span, a') || pGroup.nextElementSibling;
-                target.click();
-                return 'elemento proximo clicado';
-            }}
-        }}
-        // 3. Altera o número no input e dispara o evento Enter
-        let pInput = document.querySelector('.pcontrol input, input[name="page"]');
-        if (pInput) {{
-            pInput.value = '{proxima_pagina}';
-            pInput.dispatchEvent(new Event('change', {{ bubbles: true }}));
-            let ev = new KeyboardEvent('keydown', {{ bubbles: true, cancelable: true, keyCode: 13, key: 'Enter' }});
-            pInput.dispatchEvent(ev);
-            return 'input preenchido para {proxima_pagina}';
-        }}
-        return 'nao encontrado';
-    }}""")
+    candidatos = [escopo, page] + [f for f in page.frames if f != escopo and f != page]
 
-    print(f"    -> Status da ação de paginação: {res_js}")
-    time.sleep(4)
-    page.wait_for_load_state("networkidle")
-    return res_js != 'nao encontrado'
+    for idx_c, c in enumerate(candidatos):
+        try:
+            res_js = c.evaluate(f"""() => {{
+                // 1. Tenta botão .pNext do Flexigrid
+                let btnNext = document.querySelector('.pNext, .pButton.pNext, div.pNext, .pGroup .pNext, [class*="pNext"]');
+                if (btnNext && !btnNext.classList.contains('pDisable')) {{
+                    btnNext.click();
+                    return 'pNext clicado';
+                }}
+
+                // 2. Localiza o elemento que contém '/ X' e clica no próximo grupo
+                let all = Array.from(document.querySelectorAll('*'));
+                let pEl = all.find(e => /\\/\\s*\\d+/.test(e.textContent) && e.children.length <= 3);
+                if (pEl) {{
+                    let pGroup = pEl.closest('.pGroup') || pEl.parentElement;
+                    if (pGroup) {{
+                        let nextGroup = pGroup.nextElementSibling;
+                        while (nextGroup && !nextGroup.querySelector('.pButton, div, a, img, span')) {{
+                            nextGroup = nextGroup.nextElementSibling;
+                        }}
+                        if (nextGroup) {{
+                            let target = nextGroup.querySelector('.pButton, div, a, img, span') || nextGroup;
+                            target.click();
+                            return 'nextGroup clicado';
+                        }}
+                    }}
+                }}
+
+                // 3. Atualiza o input de página para o número desejado
+                let pInput = document.querySelector('.pcontrol input, input[name="page"], input[id*="page"]');
+                if (pInput) {{
+                    pInput.value = '{proxima_pagina}';
+                    pInput.dispatchEvent(new Event('change', {{ bubbles: true }}));
+                    let ev = new KeyboardEvent('keydown', {{ bubbles: true, cancelable: true, keyCode: 13, key: 'Enter' }});
+                    pInput.dispatchEvent(ev);
+                    return 'input alterado para {proxima_pagina}';
+                }}
+
+                return 'nao encontrado';
+            }}""")
+
+            if res_js != 'nao encontrado':
+                print(f"    [+] Ação de paginação bem-sucedida no frame #{idx_c}: {res_js}")
+                time.sleep(4)
+                page.wait_for_load_state("networkidle")
+                return True
+        except Exception:
+            pass
+
+    # Fallback via Playwright Locator
+    for c in candidatos:
+        try:
+            btn = c.locator(".pNext, .pButton.pNext, div.pNext, [class*='pNext']").first
+            if btn.count() > 0 and btn.is_visible():
+                btn.click()
+                time.sleep(4)
+                page.wait_for_load_state("networkidle")
+                return True
+        except Exception:
+            pass
+
+    print(f"    [!] Não foi possível avançar para a página {proxima_pagina}.")
+    return False
 
 
 def filtrar_e_baixar_ligacoes(page, escopo, ramal_info):
@@ -251,13 +282,14 @@ def filtrar_e_baixar_ligacoes(page, escopo, ramal_info):
                 if icone_audio.count() > 0 and icone_audio.is_visible():
                     colunas = [td.inner_text().strip() for td in row.locator("td").all()]
 
-                    # Mapeamento correto de acordo com a estrutura real da tabela
-                    data_hora = colunas if len(colunas) > 1 and colunas else colunas[0]
+                    # Mapeamento correto dos índices reais das colunas
+                    data_hora = colunas if len(colunas) > 1 and colunas else (colunas[0] if colunas else "")
                     duracao = colunas if len(colunas) > 2 else ""
+                    origem_num = colunas if len(colunas) > 3 else ""
                     destino = colunas if len(colunas) > 4 else ""
                     status = colunas if len(colunas) > 5 else ""
 
-                    print(f"    [+] Gravação detectada: {data_hora} | Destino: {destino} | Duração: {duracao}")
+                    print(f"    [+] Gravação detectada (Pág {pagina_atual}): {data_hora} | Destino: {destino} | Duração: {duracao}")
 
                     # 1. Clica na nota musical para abrir a caixinha
                     icone_audio.click()
@@ -279,7 +311,7 @@ def filtrar_e_baixar_ligacoes(page, escopo, ramal_info):
                     download.save_as(caminho_gsm)
                     print(f"        -> GSM salvo: {nome_gsm}")
 
-                    # Converte para WAV
+                    # Converte de .gsm para .wav
                     caminho_wav = converter_gsm_para_wav(caminho_gsm)
 
                     chamadas_baixadas.append({
@@ -301,7 +333,7 @@ def filtrar_e_baixar_ligacoes(page, escopo, ramal_info):
                 print(f"[!] Encerrando paginação na página {pagina_atual}.")
                 break
 
-    print(f"\n[*] Total de gravações baixadas para {nome} (Ramal {ramal}): {len(chamadas_baixadas)}")
+    print(f"\n[*] Total consolidado de gravações baixadas para {nome} (Ramal {ramal}): {len(chamadas_baixadas)}")
     return chamadas_baixadas
 
 
