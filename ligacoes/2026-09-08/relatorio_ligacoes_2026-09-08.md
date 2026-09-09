@@ -1,0 +1,118 @@
+# Relatório de Ligações Saintes Gravadas - 08/09/2026
+
+## Atendente: Fernanda (Ramal 2003)
+
+**Total de gravações processadas:** 3
+
+### Chamada #1
+- **Data/Hora:** 
+- **Duração:** ['', '08/09 16:55', '00:01:09', '2003', '553534060006', 'Atendida', 'Transbordo', 'Fixo Nacional', '', '']
+- **Número Destino:** ['', '08/09 16:55', '00:01:09', '2003', '553534060006', 'Atendida', 'Transbordo', 'Fixo Nacional', '', '']
+- **Status:** ['', '08/09 16:55', '00:01:09', '2003', '553534060006', 'Atendida', 'Transbordo', 'Fixo Nacional', '', '']
+- **Arquivo:** `ligacao_2003_p1_7_20260908-165545-2003-553534060006-1788897344.42820-1788897345.wav`
+
+**Transcrição do Áudio:**
+> Jogando o que é? Tá aqui, legal. Vem a gente, vai lá. Batar, a gente tem fala. Obrigado, obrigado. Vem a gente, vai lá. Bom, tudo bem, Fernanda? É que... Eu vou achar, vai a gente. Deseste o lado, eu vou montar na casa, não com a gente. Pra gente, é ou não? Ok, tá onde que é a mesma Fernanda? Tá aqui, pra gente. Ah, tá. Ou Fernanda, eu não vou querer hoje não. Vai sair de repente eu. Ah, eu tô com as coisas. Qualquer coisa eu ainda me contato com vocês. Eu tô com as coisas aqui. Eu tô querendo vender tudo pra ter espaço. Oi? Você tem uma notada, ela é soheta. Por favor. Você tem nossa app? Eu sei. Eu tenho um personal sete, um full-follow. Pode mandar no meu. 9. É 5. 35, 9. 9, 1, 25. Meia, meia, 3, 8. É, comina-te, que coisa que falso. É, é, é, obrigado. Tchau. Tchau.
+
+---
+
+### Chamada #2
+- **Data/Hora:** 
+- **Duração:** ['', '08/09 16:33', '00:00:10', '2003', '01535997682052', 'Atendida', 'Transbordo', 'Celular Nacional', '', '']
+- **Número Destino:** ['', '08/09 16:33', '00:00:10', '2003', '01535997682052', 'Atendida', 'Transbordo', 'Celular Nacional', '', '']
+- **Status:** ['', '08/09 16:33', '00:00:10', '2003', '01535997682052', 'Atendida', 'Transbordo', 'Celular Nacional', '', '']
+- **Arquivo:** `ligacao_2003_p1_10_20260908-163350-2003-5535997682052-1788896028.42725-1788896030.wav`
+
+**Transcrição do Áudio:**
+> 
+
+---
+
+### Chamada #3
+- **Data/Hora:** 
+- **Duração:** ['', '08/09 15:43', '00:00:51', '2003', '553732612150', 'Atendida', 'Transbordo', 'Fixo Nacional', '', '']
+- **Número Destino:** ['', '08/09 15:43', '00:00:51', '2003', '553732612150', 'Atendida', 'Transbordo', 'Fixo Nacional', '', '']
+- **Status:** ['', '08/09 15:43', '00:00:51', '2003', '553732612150', 'Atendida', 'Transbordo', 'Fixo Nacional', '', '']
+- **Arquivo:** `ligacao_2003_p1_14_20260908-154351-2003-553732612150-1788893028.42427-1788893031.wav`
+
+**Transcrição do Áudio:**
+> Ah, você ligou para a forte acabamento? Se desejo falar em vendas em G-4. Finançei o Fissau de G-5. Aixia de G-6. Ou a voz de nosso atendimento obrigada. A mal ocupado. A guarde.
+
+---
+
+## Atendente: Julia (Ramal 2005)
+
+**Total de gravações processadas:** 6
+
+### Chamada #1
+- **Data/Hora:** 
+- **Duração:** ['', '08/09 17:18', '00:00:29', '2005', '5531997946303', 'Atendida', 'Transbordo', 'Celular Local', '', '']
+- **Número Destino:** ['', '08/09 17:18', '00:00:29', '2005', '5531997946303', 'Atendida', 'Transbordo', 'Celular Local', '', '']
+- **Status:** ['', '08/09 17:18', '00:00:29', '2005', '5531997946303', 'Atendida', 'Transbordo', 'Celular Local', '', '']
+- **Arquivo:** `ligacao_2005_p1_4_20260908-171842-2005-5531997946303-1788898720.43034-1788898722.wav`
+
+**Transcrição do Áudio:**
+> Se você disser seu nome e o motivo da ligação, poderê ver se esta pessoa está disponível. Esta pessoa não está disponível.
+
+---
+
+### Chamada #2
+- **Data/Hora:** 
+- **Duração:** ['', '08/09 17:13', '00:00:08', '2005', '5531999861645', 'Atendida', 'Transbordo', 'Celular Local', '', '']
+- **Número Destino:** ['', '08/09 17:13', '00:00:08', '2005', '5531999861645', 'Atendida', 'Transbordo', 'Celular Local', '', '']
+- **Status:** ['', '08/09 17:13', '00:00:08', '2005', '5531999861645', 'Atendida', 'Transbordo', 'Celular Local', '', '']
+- **Arquivo:** `ligacao_2005_p1_9_20260908-171334-2005-5531999861645-1788898411.42984-1788898414.wav`
+
+**Transcrição do Áudio:**
+> 
+
+---
+
+### Chamada #3
+- **Data/Hora:** 
+- **Duração:** ['', '08/09 17:10', '00:00:37', '2005', '5531999267070', 'Atendida', 'Transbordo', 'Celular Local', '', '']
+- **Número Destino:** ['', '08/09 17:10', '00:00:37', '2005', '5531999267070', 'Atendida', 'Transbordo', 'Celular Local', '', '']
+- **Status:** ['', '08/09 17:10', '00:00:37', '2005', '5531999267070', 'Atendida', 'Transbordo', 'Celular Local', '', '']
+- **Arquivo:** `ligacao_2005_p1_12_20260908-171047-2005-5531999267070-1788898244.42960-1788898247.wav`
+
+**Transcrição do Áudio:**
+> e o que eu falo? Porta a faixa? Não, não, não, não. Quem quer falar com ela? É a Julia da fibraço sem ser tira. Não é a minha esposa? Eu estou com 7. Tem que ir ainda guardado. Eu vou precisar, mas dá para tudo enquanto não. Não, não, não, não. Obrigado. Eu fico à disposição. Não, não, não. Eu vou precisar, mas dá para tudo enquanto não. Não, não, não é a pessoa. Não é a pessoa.
+
+---
+
+### Chamada #4
+- **Data/Hora:** 
+- **Duração:** ['', '08/09 17:08', '00:00:01', '2005', '5531997061974', 'Atendida', 'Transbordo', 'Celular Local', '', '']
+- **Número Destino:** ['', '08/09 17:08', '00:00:01', '2005', '5531997061974', 'Atendida', 'Transbordo', 'Celular Local', '', '']
+- **Status:** ['', '08/09 17:08', '00:00:01', '2005', '5531997061974', 'Atendida', 'Transbordo', 'Celular Local', '', '']
+- **Arquivo:** `ligacao_2005_p1_15_20260908-170849-2005-5531997061974-1788898122.42936-1788898129.wav`
+
+**Transcrição do Áudio:**
+> 
+
+---
+
+### Chamada #5
+- **Data/Hora:** 
+- **Duração:** ['', '08/09 17:05', '00:01:14', '2005', '5531971710797', 'Atendida', 'Transbordo', 'Celular Local', '', '']
+- **Número Destino:** ['', '08/09 17:05', '00:01:14', '2005', '5531971710797', 'Atendida', 'Transbordo', 'Celular Local', '', '']
+- **Status:** ['', '08/09 17:05', '00:01:14', '2005', '5531971710797', 'Atendida', 'Transbordo', 'Celular Local', '', '']
+- **Arquivo:** `ligacao_2005_p1_19_20260908-170507-2005-5531971710797-1788897904.42904-1788897907.wav`
+
+**Transcrição do Áudio:**
+> Eu sou o winners Wolver TO
+
+---
+
+### Chamada #6
+- **Data/Hora:** 
+- **Duração:** ['', '08/09 16:58', '00:00:10', '2005', '5531999196367', 'Atendida', 'Transbordo', 'Celular Local', '', '']
+- **Número Destino:** ['', '08/09 16:58', '00:00:10', '2005', '5531999196367', 'Atendida', 'Transbordo', 'Celular Local', '', '']
+- **Status:** ['', '08/09 16:58', '00:00:10', '2005', '5531999196367', 'Atendida', 'Transbordo', 'Celular Local', '', '']
+- **Arquivo:** `ligacao_2005_p1_22_20260908-165900-2005-5531999196367-1788897536.42872-1788897540.wav`
+
+**Transcrição do Áudio:**
+> 
+
+---
+
