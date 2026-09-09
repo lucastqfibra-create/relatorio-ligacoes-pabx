@@ -1,0 +1,63 @@
+name: Rotina Diária de Gravações e Transcrição
+
+on:
+  schedule:
+    # Executa de segunda a sábado às 07:00 da manhã (Horário de Brasília: UTC-3 -> 10:00 UTC)
+    - cron: '0 10 * * 1-6'
+  workflow_dispatch: # Permite disparar manualmente pelo botão no GitHub
+
+jobs:
+  processar-ligacoes:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout do código
+        uses: actions/checkout@v4
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+          cache: 'pip'
+
+      - name: Instalar FFmpeg (necessário para o Whisper)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+
+      - name: Instalar dependências Python
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Instalar navegadores do Playwright e dependências de sistema
+        run: |
+          playwright install chromium --with-deps
+
+      - name: Executar automação de ligações
+        env:
+          PBX_URL: ${{ secrets.PBX_URL }}
+          PBX_USER: ${{ secrets.PBX_USER }}
+          PBX_PASSWORD: ${{ secrets.PBX_PASSWORD }}
+        run: |
+          python scripts/automacao_ligacoes.py
+
+      - name: Fazer upload dos relatórios e áudios gerados
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: relatorio-e-audios-${{ github.run_id }}
+          path: |
+            ligacoes/**/*.md
+            ligacoes/**/*.csv
+            ligacoes/**/*.wav
+            ligacoes/**/*.mp3
+          retention-days: 14
+
+      - name: Salvar relatório no repositório (opcional)
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add ligacoes/**/*.md ligacoes/**/*.csv || true
+          git commit -m "Relatório de ligações: $(date +'%Y-%m-%d')" || echo "Nenhuma alteração para commitar"
+          git push || echo "Sem permissão de push direto ou branch protegida"
