@@ -39,7 +39,6 @@ RAMAIS = [
     {"ramal": "2005", "nome": "Julia"}
 ]
 
-# Formato exato da tela: 08/09/2026
 DATA_ONTEM_BR = (datetime.now() - timedelta(days=1)).strftime("%d/%m/%Y")
 DATA_DIR = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
 BASE_DOWNLOAD_DIR = os.path.join(os.getcwd(), "ligacoes", DATA_DIR)
@@ -48,7 +47,7 @@ BASE_DOWNLOAD_DIR = os.path.join(os.getcwd(), "ligacoes", DATA_DIR)
 def encontrar_campos_login(escopo):
     seletores_user = [
         "input[name*='user']", "input[name*='login']", "input[name*='usuario']",
-        "input[id*='user']", "input[id*='login']", "input[id*='usuario']",
+        "input[id*='user']", "input[id*='login']",
         "input:not([type='hidden']):not([type='password']):not([type='submit']):not([type='checkbox']):not([type='radio'])"
     ]
     seletores_pass = [
@@ -78,45 +77,23 @@ def encontrar_campos_login(escopo):
     return user_field, pass_field
 
 
-def buscar_em_todos_frames(page, seletor, timeout_ms=8000):
-    inicio = time.time()
-    while (time.time() - inicio) < (timeout_ms / 1000):
-        try:
-            loc = page.locator(seletor).first
-            if loc.count() > 0 and loc.is_visible():
-                return loc
-        except Exception:
-            pass
-
-        for f in page.frames:
-            try:
-                loc = f.locator(seletor).first
-                if loc.count() > 0 and loc.is_visible():
-                    return loc
-            except Exception:
-                pass
-        time.sleep(0.4)
-    return None
-
-
 def realizar_login(page):
     print(f"[*] Acessando central PABX em {PBX_URL}...")
     page.goto(PBX_URL, timeout=60000, wait_until="domcontentloaded")
     time.sleep(2)
 
     alvo = page
-    user_input, pass_input = encontrar_campos_login(page)
+    user_input, pass_input = None, None
 
-    if not user_input and len(page.frames) > 1:
-        for idx, f in enumerate(page.frames):
-            u, p = encontrar_campos_login(f)
-            if u and p:
-                user_input, pass_input = u, p
-                alvo = f
-                break
+    for f in [page] + page.frames:
+        u, p = encontrar_campos_login(f)
+        if u and p:
+            user_input, pass_input = u, p
+            alvo = f
+            break
 
     if not user_input or not pass_input:
-        raise Exception(f"Campos de login não encontrados. Título: '{page.title()}'")
+        raise Exception(f"Campos de login não localizados na tela. Título: '{page.title()}'")
 
     print("[*] Preenchendo credenciais...")
     user_input.fill(PBX_USER)
@@ -133,31 +110,77 @@ def realizar_login(page):
 
     time.sleep(4)
     page.wait_for_load_state("networkidle")
-    print(f"[+] Login concluído com sucesso.")
+    print("[+] Login concluído com sucesso.")
+
+
+def obter_frame_relatorio(page):
+    """Localiza o frame específico que contém o campo #src e o botão #confirm."""
+    for f in page.frames:
+        try:
+            if f.locator("#src").count() > 0 or f.locator("#confirm").count() > 0:
+                return f
+        except Exception:
+            pass
+    return page
 
 
 def navegar_para_registro_ligacoes(page):
-    print("[*] Navegando até Relatórios -> Ligações -> Registro de ligações...")
+    print("[*] Verificando acesso à tela de Registro de Ligações...")
     
-    relatorios = buscar_em_todos_frames(page, "text=/^Relat[oó]rios/i, a:has-text('Relatórios'), a:has-text('Relatorios'), span:has-text('Relatórios')")
-    if relatorios:
-        relatorios.click()
-        time.sleep(1)
+    # Se o campo #src já estiver na tela, já estamos no lugar certo
+    frame = obter_frame_relatorio(page)
+    if frame.locator("#src").count() > 0:
+        print("[+] Tela de Registro de Ligações já carregada.")
+        return
 
-    ligacoes = buscar_em_todos_frames(page, "text=/^Liga[cç][oõ]es/i, a:has-text('Ligações'), a:has-text('Ligacoes')")
-    if ligacoes:
-        ligacoes.click()
-        time.sleep(1)
+    # Opção 1: Atalho direto na página inicial
+    for f in page.frames:
+        atalho = f.locator("text=/^REGISTROS DE LIGA[CÇ][OÕ]ES/i, a:has-text('REGISTROS DE LIGAÇÕES'), a:has-text('Registros de ligações')").first
+        try:
+            if atalho.count() > 0 and atalho.is_visible():
+                print("[+] Clicando no atalho direto 'REGISTROS DE LIGAÇÕES'...")
+                atalho.click()
+                time.sleep(3)
+                page.wait_for_load_state("networkidle")
+                return
+        except Exception:
+            pass
 
-    reg = buscar_em_todos_frames(page, "text=/Registro de liga[cç][oõ]es/i, a:has-text('Registro de ligações'), a:has-text('Registro de Ligacoes')")
-    if reg:
-        reg.click()
-        time.sleep(3)
-        page.wait_for_load_state("networkidle")
+    # Opção 2: Menu lateral
+    print("[*] Navegando via menu lateral...")
+    for f in page.frames:
+        rel = f.locator("text=/^Relat[oó]rios/i, a:has-text('Relatórios'), span:has-text('Relatórios')").first
+        try:
+            if rel.count() > 0 and rel.is_visible():
+                rel.click()
+                time.sleep(1)
+                break
+        except Exception:
+            pass
+
+    for f in page.frames:
+        lig = f.locator("text=/^Liga[cç][oõ]es/i, a:has-text('Ligações')").first
+        try:
+            if lig.count() > 0 and lig.is_visible():
+                lig.click()
+                time.sleep(1)
+                break
+        except Exception:
+            pass
+
+    for f in page.frames:
+        reg = f.locator("text=/Registro de liga[cç][oõ]es/i, a:has-text('Registro de ligações')").first
+        try:
+            if reg.count() > 0 and reg.is_visible():
+                reg.click()
+                time.sleep(3)
+                page.wait_for_load_state("networkidle")
+                break
+        except Exception:
+            pass
 
 
 def converter_gsm_para_wav(caminho_gsm):
-    """Converte áudio .gsm para .wav usando FFmpeg."""
     caminho_wav = caminho_gsm.rsplit(".", 1)[0] + ".wav"
     try:
         subprocess.run(
@@ -168,7 +191,7 @@ def converter_gsm_para_wav(caminho_gsm):
         )
         return caminho_wav
     except Exception as e:
-        print(f"    [!] Erro ao converter GSM para WAV: {e}")
+        print(f"    [!] Erro ao converter {caminho_gsm} para WAV: {e}")
         return caminho_gsm
 
 
@@ -179,28 +202,29 @@ def filtrar_e_baixar_ligacoes(page, ramal_info):
     os.makedirs(pasta_destino, exist_ok=True)
 
     print(f"\n[*] =================== PROCESSANDO RAMAL {ramal} ({nome}) ===================")
+    frame = obter_frame_relatorio(page)
 
-    # 1. Preenchimento de Data: De e Até
-    # Procura campos de texto ou data no frame
-    campo_de = buscar_em_todos_frames(page, "input[name*='data_ini'], input[name*='de'], input[id*='data_ini'], input[id*='de']")
-    if campo_de:
-        print(f"[*] Preenchendo data 'De': {DATA_ONTEM_BR}")
-        campo_de.fill(DATA_ONTEM_BR)
+    # 1. Ajusta campos de data para o dia anterior (identificados pelo padrão DD/MM/AAAA)
+    for inp in frame.locator("input[type='text'], input:not([type])").all():
+        try:
+            val = inp.input_value()
+            if re.match(r"^\d{2}/\d{2}/\d{4}$", val):
+                print(f"[*] Ajustando data ({val}) para {DATA_ONTEM_BR}...")
+                inp.fill(DATA_ONTEM_BR)
+        except Exception:
+            pass
 
-    campo_ate = buscar_em_todos_frames(page, "input[name*='data_fim'], input[name*='ate'], input[id*='data_fim'], input[id*='ate']")
-    if campo_ate:
-        print(f"[*] Preenchendo data 'Até': {DATA_ONTEM_BR}")
-        campo_ate.fill(DATA_ONTEM_BR)
-
-    # 2. Preenchimento de Origem (Ramal)
-    campo_origem = buscar_em_todos_frames(page, "input[name*='origem'], input[name*='src'], input[id*='origem'], input[id*='src']")
-    if campo_origem:
-        print(f"[*] Preenchendo Origem: {ramal}")
+    # 2. Preenche o campo #src (Origem) conforme gravado no DevTools
+    campo_origem = frame.locator("#src")
+    if campo_origem.count() > 0:
+        print(f"[*] Preenchendo Origem (#src): {ramal}")
         campo_origem.fill(ramal)
+    else:
+        print("[!] Campo #src não encontrado diretamente.")
 
-    # 3. Seleção do Tipo: Saínte (com e sem acento)
-    select_tipo = buscar_em_todos_frames(page, "select[name*='tipo'], select[id*='tipo']")
-    if select_tipo:
+    # 3. Seleciona Tipo 'Saínte'
+    select_tipo = frame.locator("select").first
+    if select_tipo.count() > 0:
         try:
             select_tipo.select_option(label="Saínte")
             print("[*] Tipo selecionado: 'Saínte'")
@@ -208,75 +232,69 @@ def filtrar_e_baixar_ligacoes(page, ramal_info):
             try:
                 select_tipo.select_option(label="Sainte")
             except Exception:
-                try:
-                    select_tipo.select_option(value="sainte")
-                except Exception:
-                    pass
+                pass
 
-    # 4. Clicar no botão Consultar (conforme a imagem)
-    btn_consultar = buscar_em_todos_frames(page, "button:has-text('Consultar'), input[value*='Consultar' i], a:has-text('Consultar')")
-    if btn_consultar:
-        print("[*] Clicando no botão 'Consultar'...")
-        btn_consultar.click()
+    # 4. Clica no botão #confirm (Consultar) conforme gravado no DevTools
+    btn_confirm = frame.locator("#confirm")
+    if btn_confirm.count() > 0:
+        print("[*] Clicando no botão Consultar (#confirm)...")
+        btn_confirm.click()
     else:
-        print("[!] Botão 'Consultar' não encontrado diretamente, tentando envio padrão...")
+        print("[!] Botão #confirm não encontrado.")
 
-    time.sleep(4)
+    time.sleep(5)
     page.wait_for_load_state("networkidle")
+    frame = obter_frame_relatorio(page)
 
-    # 5. Coleta e download de gravações por página
-    arquivos_processados = []
+    # 5. Varrer as páginas e baixar as gravações
+    chamadas_baixadas = []
     pagina_atual = 1
-    max_paginas = 8
+    max_paginas = 6
 
     while pagina_atual <= max_paginas:
         print(f"[*] Verificando gravações na página {pagina_atual}...")
-        
-        # Encontra o frame que contém a tabela de chamadas
-        frame_tabela = page
-        for f in page.frames:
-            if f.locator("table").count() > 0:
-                frame_tabela = f
-                break
-
-        # Linhas de chamadas da tabela
-        linhas = frame_tabela.locator("table tr").all()
-        print(f"[*] Total de linhas na tabela da página {pagina_atual}: {len(linhas)}")
+        linhas = frame.locator("tr[id^='tr_']").all()
+        print(f"[*] Total de linhas de chamada na página {pagina_atual}: {len(linhas)}")
 
         for idx, row in enumerate(linhas):
             try:
-                # O ícone de gravação (nota musical ♫) fica na última coluna
-                ultimo_td = row.locator("td").last
-                if ultimo_td.count() == 0:
-                    continue
+                # Ícone de nota musical na 10ª coluna conforme o DevTools: td:nth-of-type(10) > a > img
+                icone_audio = row.locator("td:nth-of-type(10) > a > img, td:nth-child(10) > a > img").first
 
-                # Verifica se há link ou elemento clicável de áudio na última coluna
-                elemento_audio = ultimo_td.locator("a, img, i, button, span").first
-                if elemento_audio.count() > 0 and elemento_audio.is_visible():
-                    # Extrai dados da linha
-                    colunas = [td.inner_text().strip() for td in row.locator("td").all()]
-                    data_hora = colunas[0] if len(colunas) > 0 else ""
-                    duracao = colunas if len(colunas) > 1 else ""
-                    destino = colunas if len(colunas) > 3 else ""
-                    status = colunas if len(colunas) > 4 else ""
+                if icone_audio.count() > 0 and icone_audio.is_visible():
+                    tds = [td.inner_text().strip() for td in row.locator("td").all()]
+                    data_hora = tds[0] if len(tds) > 0 else ""
+                    duracao = tds if len(tds) > 1 else ""
+                    destino = tds if len(tds) > 3 else ""
+                    status = tds if len(tds) > 4 else ""
 
-                    print(f"    [+] Chamada com gravação encontrada: {data_hora} | Destino: {destino} | Duração: {duracao}")
+                    print(f"    [+] Gravação detectada: {data_hora} | Destino: {destino} | Duração: {duracao}")
 
-                    # Dispara o download do arquivo GSM
-                    with page.expect_download(timeout=15000) as download_info:
-                        elemento_audio.click()
-                    download = download_info.value
+                    # 1. Clica na nota musical para abrir a caixinha
+                    icone_audio.click()
+                    time.sleep(1)
+
+                    # 2. Clica no botão Salvar conforme o DevTools: td:nth-of-type(10) > div img
+                    btn_salvar = row.locator("td:nth-of-type(10) > div img, td:nth-child(10) > div img, img[alt*='Salvar' i], a:has(img[alt*='Salvar' i])").first
                     
+                    with page.expect_download(timeout=15000) as download_info:
+                        if btn_salvar.count() > 0 and btn_salvar.is_visible():
+                            btn_salvar.click()
+                        else:
+                            # fallback: clica na imagem de salvar no frame
+                            frame.locator("img[alt*='Salvar' i], a:has-text('Salvar')").first.click()
+
+                    download = download_info.value
                     nome_original = download.suggested_filename
-                    nome_gsm = f"ligacao_{ramal}_{pagina_atual}_{idx}_{nome_original}"
+                    nome_gsm = f"ligacao_{ramal}_p{pagina_atual}_{idx}_{nome_original}"
                     caminho_gsm = os.path.join(pasta_destino, nome_gsm)
                     download.save_as(caminho_gsm)
                     print(f"        -> Arquivo GSM salvo: {nome_gsm}")
 
-                    # Converte de .gsm para .wav para transcrição e reprodução
+                    # Converte para WAV
                     caminho_wav = converter_gsm_para_wav(caminho_gsm)
 
-                    arquivos_processados.append({
+                    chamadas_baixadas.append({
                         "arquivo_gsm": caminho_gsm,
                         "arquivo_wav": caminho_wav,
                         "data_hora": data_hora,
@@ -284,25 +302,26 @@ def filtrar_e_baixar_ligacoes(page, ramal_info):
                         "destino": destino,
                         "status": status
                     })
-            except Exception as row_err:
+            except Exception as e:
                 pass
 
-        # Paginação: tenta avançar para a próxima página clicando no botão '>'
-        btn_proximo = frame_tabela.locator("a:has-text('>'), button:has-text('>'), input[value='>']").first
+        # Paginação: avança para a próxima página no botão '>'
+        btn_proximo = frame.locator("a:has-text('>'), button:has-text('>'), input[value='>']").first
         try:
             if btn_proximo.count() > 0 and btn_proximo.is_visible() and btn_proximo.is_enabled():
                 print("[*] Avançando para a próxima página de chamadas...")
                 btn_proximo.click()
                 time.sleep(3)
                 page.wait_for_load_state("networkidle")
+                frame = obter_frame_relatorio(page)
                 pagina_atual += 1
             else:
                 break
         except Exception:
             break
 
-    print(f"[*] Total de gravações baixadas para {nome} (Ramal {ramal}): {len(arquivos_processados)}")
-    return arquivos_processados
+    print(f"[*] Total de gravações baixadas para {nome} (Ramal {ramal}): {len(chamadas_baixadas)}")
+    return chamadas_baixadas
 
 
 def transcrever_chamadas(dados_chamadas):
@@ -315,7 +334,7 @@ def transcrever_chamadas(dados_chamadas):
 
     for item in dados_chamadas:
         audio_path = item["arquivo_wav"] if os.path.exists(item["arquivo_wav"]) else item["arquivo_gsm"]
-        print(f"[*] Transcrevendo chamada ({item['data_hora']} - {item['destino']})...")
+        print(f"[*] Transcrevendo chamada ({item['data_hora']} -> {item['destino']})...")
         try:
             res = model.transcribe(audio_path, language="pt")
             texto = res.get("text", "").strip()
@@ -373,7 +392,7 @@ def gerar_relatorio(dados_por_ramal):
         csv_path = os.path.join(BASE_DOWNLOAD_DIR, f"relatorio_ligacoes_{DATA_DIR}.csv")
         df.to_csv(csv_path, index=False, encoding="utf-8-sig")
 
-    print(f"[+] Relatório gerado com sucesso em: {relatorio_md_path}")
+    print(f"[+] Relatório final gerado em: {relatorio_md_path}")
 
 
 def main():
