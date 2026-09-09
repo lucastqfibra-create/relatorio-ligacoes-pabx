@@ -44,7 +44,6 @@ BASE_DOWNLOAD_DIR = os.path.join(os.getcwd(), "ligacoes", DATA_DIR)
 
 
 def encontrar_campos_login(escopo):
-    """Varre um frame ou página buscando os campos de usuário e senha."""
     seletores_user = [
         "input[name*='user']", "input[name*='login']", "input[name*='usuario']",
         "input[id*='user']", "input[id*='login']", "input[id*='usuario']",
@@ -80,6 +79,28 @@ def encontrar_campos_login(escopo):
     return user_field, pass_field
 
 
+def buscar_em_todos_frames(page, seletor, timeout_ms=15000):
+    """Procura um elemento em todos os frames abertos da página."""
+    inicio = time.time()
+    while (time.time() - inicio) < (timeout_ms / 1000):
+        try:
+            loc = page.locator(seletor).first
+            if loc.count() > 0 and loc.is_visible():
+                return loc
+        except Exception:
+            pass
+
+        for f in page.frames:
+            try:
+                loc = f.locator(seletor).first
+                if loc.count() > 0 and loc.is_visible():
+                    return loc
+            except Exception:
+                pass
+        time.sleep(0.5)
+    return None
+
+
 def realizar_login(page):
     print(f"[*] Acessando central PABX em {PBX_URL}...")
     page.goto(PBX_URL, timeout=60000, wait_until="domcontentloaded")
@@ -88,58 +109,65 @@ def realizar_login(page):
     print(f"[*] URL atual: {page.url}")
     print(f"[*] Título da página: '{page.title()}'")
 
-    # Mapeia os inputs visíveis para diagnóstico
-    todos_inputs = page.locator("input").all()
-    print(f"[*] Total de inputs encontrados na página principal: {len(todos_inputs)}")
-    for i, inp in enumerate(todos_inputs):
-        try:
-            n = inp.get_attribute("name") or ""
-            i_id = inp.get_attribute("id") or ""
-            t = inp.get_attribute("type") or "text"
-            print(f"    Input #{i+1}: name='{n}', id='{i_id}', type='{t}'")
-        except Exception:
-            pass
-
-    # Tenta localizar campos na página principal
+    alvo = page
     user_input, pass_input = encontrar_campos_login(page)
 
-    # Se não encontrou, verifica se a tela está dentro de um frame/iframe
     if not user_input and len(page.frames) > 1:
-        print(f"[*] Procurando campos dentro de {len(page.frames)} frames/iframes...")
+        print(f"[*] Procurando campos dentro de {len(page.frames)} frames...")
         for idx, f in enumerate(page.frames):
-            print(f"    Frame #{idx+1}: name='{f.name}', url='{f.url}'")
             u, p = encontrar_campos_login(f)
             if u and p:
                 user_input, pass_input = u, p
-                print(f"[+] Campos de login encontrados dentro do Frame #{idx+1}")
+                alvo = f
+                print(f"[+] Campos de login encontrados no Frame #{idx+1} ({f.name})")
                 break
 
     if not user_input or not pass_input:
-        raise Exception(f"Não foi possível identificar os campos de login na página. Título: '{page.title()}', URL: '{page.url}'")
+        raise Exception(f"Campos de login não encontrados na tela. Título: '{page.title()}'")
 
     print("[*] Preenchendo credenciais...")
     user_input.fill(PBX_USER)
     pass_input.fill(PBX_PASSWORD)
 
-    botao = page.locator("button[type='submit'], input[type='submit'], button:has-text('Entrar'), button:has-text('Login'), input[value*='Entrar' i], input[value*='Login' i]").first
-    botao.click()
+    # Submete o formulário dentro do mesmo frame onde estão os campos
+    botao = alvo.locator("button[type='submit'], input[type='submit'], button:has-text('Entrar'), button:has-text('Login'), input[value*='Entrar' i], input[value*='Login' i], a:has-text('Entrar'), a:has-text('Login')").first
+    try:
+        if botao.count() > 0 and botao.is_visible():
+            print("[*] Clicando no botão de login dentro do frame...")
+            botao.click(timeout=5000)
+        else:
+            print("[*] Botão não encontrado visualmente. Enviando com 'Enter' no campo de senha...")
+            pass_input.press("Enter")
+    except Exception:
+        print("[*] Pressionando 'Enter' no campo de senha...")
+        pass_input.press("Enter")
+
+    time.sleep(3)
     page.wait_for_load_state("networkidle")
-    print("[+] Formulário de login enviado com sucesso.")
+    print(f"[+] Login enviado. Título pós-login: '{page.title()}'")
 
 
 def navegar_para_registro_ligacoes(page):
     print("[*] Navegando até Relatórios -> Ligações -> Registro de ligações...")
-    menu_relatorios = page.locator("text=Relatórios, a:has-text('Relatórios'), span:has-text('Relatórios')").first
-    menu_relatorios.click()
-    time.sleep(1)
+    
+    relatorios = buscar_em_todos_frames(page, "text=Relatórios, a:has-text('Relatórios'), span:has-text('Relatórios')")
+    if relatorios:
+        print("[+] Clicando no menu 'Relatórios'...")
+        relatorios.click()
+        time.sleep(1)
 
-    submenu_ligacoes = page.locator("text=Ligações, a:has-text('Ligações'), span:has-text('Ligações')").first
-    submenu_ligacoes.click()
-    time.sleep(1)
+    ligacoes = buscar_em_todos_frames(page, "text=Ligações, a:has-text('Ligações'), span:has-text('Ligações')")
+    if ligacoes:
+        print("[+] Clicando no submenu 'Ligações'...")
+        ligacoes.click()
+        time.sleep(1)
 
-    opcao_registro = page.locator("text=Registro de ligações, a:has-text('Registro de ligações')").first
-    opcao_registro.click()
-    page.wait_for_load_state("networkidle")
+    reg = buscar_em_todos_frames(page, "text=Registro de ligações, a:has-text('Registro de ligações'), text=Registro de Ligações")
+    if reg:
+        print("[+] Clicando na opção 'Registro de ligações'...")
+        reg.click()
+        time.sleep(2)
+        page.wait_for_load_state("networkidle")
 
 
 def filtrar_e_baixar_ligacoes(page, ramal_info):
@@ -150,20 +178,20 @@ def filtrar_e_baixar_ligacoes(page, ramal_info):
 
     print(f"[*] Filtrando ligações para {nome} (Ramal {ramal}) - Data: {DATA_ONTEM}...")
 
-    campo_data_ini = page.locator("input[name*='data_ini'], input[name*='inicio'], input[name*='start']").first
-    campo_data_fim = page.locator("input[name*='data_fim'], input[name*='fim'], input[name*='end']").first
-    
-    if campo_data_ini.is_visible():
+    campo_data_ini = buscar_em_todos_frames(page, "input[name*='data_ini'], input[name*='inicio'], input[name*='start'], input[id*='data_ini'], input[id*='inicio']")
+    if campo_data_ini:
         campo_data_ini.fill(DATA_ONTEM)
-    if campo_data_fim.is_visible():
+
+    campo_data_fim = buscar_em_todos_frames(page, "input[name*='data_fim'], input[name*='fim'], input[name*='end'], input[id*='data_fim'], input[id*='fim']")
+    if campo_data_fim:
         campo_data_fim.fill(DATA_ONTEM)
 
-    campo_origem = page.locator("input[name*='origem'], input[name*='src'], input[name*='source']").first
-    if campo_origem.is_visible():
+    campo_origem = buscar_em_todos_frames(page, "input[name*='origem'], input[name*='src'], input[name*='source'], input[id*='origem'], input[id*='src']")
+    if campo_origem:
         campo_origem.fill(ramal)
 
-    select_tipo = page.locator("select[name*='tipo'], select[name*='direction']").first
-    if select_tipo.is_visible():
+    select_tipo = buscar_em_todos_frames(page, "select[name*='tipo'], select[name*='direction'], select[id*='tipo']")
+    if select_tipo:
         try:
             select_tipo.select_option(label="Sainte")
         except Exception:
@@ -172,14 +200,27 @@ def filtrar_e_baixar_ligacoes(page, ramal_info):
             except Exception:
                 pass
 
-    page.locator("button:has-text('Filtrar'), input[value='Filtrar'], button:has-text('Buscar'), input[value='Buscar']").first.click()
-    page.wait_for_load_state("networkidle")
+    btn_filtrar = buscar_em_todos_frames(page, "button:has-text('Filtrar'), input[value*='Filtrar' i], button:has-text('Buscar'), input[value*='Buscar' i], button[type='submit'], input[type='submit']")
+    if btn_filtrar:
+        print("[*] Clicando no botão Filtrar...")
+        btn_filtrar.click()
+    
     time.sleep(3)
+    page.wait_for_load_state("networkidle")
 
-    links_gravacao = page.locator("a[href*='download'], a[href*='.wav'], a[href*='.mp3'], button[title*='Gravação'], a:has(i.fa-download)").all()
+    # Localizar os links de gravação em todos os frames ativos
+    links_gravacao = []
+    for f in [page] + page.frames:
+        try:
+            achados = f.locator("a[href*='download'], a[href*='.wav'], a[href*='.mp3'], button[title*='Gravação'], a:has(i.fa-download), a[href*='audio'], img[src*='download'], img[src*='play'], a:has(img[src*='download']), a:has(img[src*='play'])").all()
+            for l in achados:
+                if l.is_visible():
+                    links_gravacao.append(l)
+        except Exception:
+            pass
 
-    arquivos_baixados = []
     print(f"[*] Gravações encontradas: {len(links_gravacao)}")
+    arquivos_baixados = []
 
     for idx, link in enumerate(links_gravacao):
         try:
@@ -270,7 +311,6 @@ def main():
             headless=True,
             args=["--no-sandbox", "--disable-setuid-sandbox"]
         )
-        # Suporte a HTTP Basic Auth e downloads
         context = browser.new_context(
             accept_downloads=True,
             http_credentials={"username": PBX_USER, "password": PBX_PASSWORD}
