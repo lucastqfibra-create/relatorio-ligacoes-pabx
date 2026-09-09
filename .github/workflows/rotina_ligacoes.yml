@@ -2,16 +2,18 @@ name: Rotina Diária de Gravações e Transcrição
 
 on:
   schedule:
-    # Executa de segunda a sábado às 07:00 da manhã (Horário de Brasília: UTC-3 -> 10:00 UTC)
     - cron: '0 10 * * 1-6'
-  workflow_dispatch: # Permite disparar manualmente pelo botão no GitHub
+  workflow_dispatch:
 
 jobs:
   processar-ligacoes:
     runs-on: ubuntu-latest
 
+    permissions:
+      contents: write
+
     steps:
-      - name: Checkout do código
+      - name: Checkout do repositório
         uses: actions/checkout@v4
 
       - name: Configurar Python
@@ -20,7 +22,7 @@ jobs:
           python-version: '3.10'
           cache: 'pip'
 
-      - name: Instalar FFmpeg (necessário para o Whisper)
+      - name: Instalar FFmpeg
         run: |
           sudo apt-get update
           sudo apt-get install -y ffmpeg
@@ -30,7 +32,7 @@ jobs:
           pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Instalar navegadores do Playwright e dependências de sistema
+      - name: Instalar navegadores Playwright
         run: |
           playwright install chromium --with-deps
 
@@ -42,7 +44,7 @@ jobs:
         run: |
           python scripts/automacao_ligacoes.py
 
-      - - name: Fazer upload dos áudios e relatórios (Artifacts)
+      - name: Fazer upload dos áudios e relatórios (Artifacts)
         uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -50,10 +52,10 @@ jobs:
           path: ligacoes/**
           retention-days: 14
 
-      - name: Salvar relatório no repositório (opcional)
+      - name: Salvar relatório no repositório
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git add ligacoes/**/*.md ligacoes/**/*.csv || true
-          git commit -m "Relatório de ligações: $(date +'%Y-%m-%d')" || echo "Nenhuma alteração para commitar"
-          git push || echo "Sem permissão de push direto ou branch protegida"
+          git commit -m "Relatório de ligações: $(date +'%Y-%m-%d')" || echo "Nenhum arquivo novo para comitar"
+          git push || echo "Push ignorado"
