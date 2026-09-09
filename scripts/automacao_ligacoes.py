@@ -6,28 +6,34 @@ import pandas as pd
 from playwright.sync_api import sync_playwright
 import whisper
 
-def sanitizar_url(url_bruta):
-    """Extrai e limpa a URL, tolerando prefixos como 'PBX_URL=', maiúsculas, aspas ou barras extras."""
-    s = url_bruta.strip()
-    if "=" in s:
-        s = s.split("=", 1).strip()
-    elif s.lower().startswith("pbx_url:"):
-        s = s.split(":", 1).strip()
+def extrair_url(valor_env):
+    """Extrai estritamente o IP ou domínio do PABX, evitando caracteres inválidos."""
+    if not valor_env:
+        return "http://177.10.116.84/"
     
-    s = s.strip("\"' ")
-    # Remove qualquer variação de http:// ou https:// duplicada
-    s = re.sub(r'^(https?://)+', '', s, flags=re.IGNORECASE).strip("/ ")
-    return f"http://{s}/"
+    limpo = re.sub(r"\s+", "", valor_env)
+    match_ip = re.search(r"(?:\d{1,3}\.){3}\d{1,3}(?::\d+)?", limpo)
+    if match_ip:
+        return f"http://{match_ip.group(0)}/"
+    
+    dominio = re.sub(r"^(https?://)+", "", limpo, flags=re.IGNORECASE).strip("/'\"")
+    if dominio and not dominio.startswith("*") and "." in dominio:
+        return f"http://{dominio}/"
+    
+    return "http://177.10.116.84/"
 
 def limpar_credencial(chave, padrao):
-    s = os.getenv(chave, padrao).strip()
+    val = os.getenv(chave, padrao)
+    if not val or val.strip() == "" or val.strip().startswith("***"):
+        return padrao
+    s = val.strip()
     if "=" in s:
         s = s.split("=", 1).strip()
     elif ":" in s and s.lower().startswith(chave.lower()):
         s = s.split(":", 1).strip()
     return s.strip("\"' ")
 
-PBX_URL = sanitizar_url(os.getenv("PBX_URL", "177.10.116.84"))
+PBX_URL = extrair_url(os.getenv("PBX_URL", "177.10.116.84"))
 PBX_USER = limpar_credencial("PBX_USER", "lucas")
 PBX_PASSWORD = limpar_credencial("PBX_PASSWORD", "lcsu251535")
 
@@ -42,8 +48,8 @@ BASE_DOWNLOAD_DIR = os.path.join(os.getcwd(), "ligacoes", DATA_DIR)
 
 
 def realizar_login(page):
-    print(f"[*] Acessando {PBX_URL}...")
-    page.goto(PBX_URL, timeout=60000, wait_until="load")
+    print(f"[*] Acessando central PABX em {PBX_URL}...")
+    page.goto(PBX_URL, timeout=60000, wait_until="domcontentloaded")
     
     user_input = page.locator("input[name*='user'], input[name*='login'], input[type='text']").first
     pass_input = page.locator("input[type='password']").first
