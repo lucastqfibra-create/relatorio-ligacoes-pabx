@@ -1,20 +1,35 @@
 import os
+import re
 import time
 from datetime import datetime, timedelta
 import pandas as pd
 from playwright.sync_api import sync_playwright
 import whisper
 
-# Sanitização e padronização das variáveis de ambiente
-raw_url = os.getenv("PBX_URL", "http://177.10.116.84/").strip().strip('"\'')
-if not raw_url.startswith(("http://", "https://")):
-    raw_url = f"http://{raw_url}"
-if not raw_url.endswith("/"):
-    raw_url = f"{raw_url}/"
+def sanitizar_url(url_bruta):
+    """Extrai e limpa a URL, tolerando prefixos como 'PBX_URL=', maiúsculas, aspas ou barras extras."""
+    s = url_bruta.strip()
+    if "=" in s:
+        s = s.split("=", 1).strip()
+    elif s.lower().startswith("pbx_url:"):
+        s = s.split(":", 1).strip()
+    
+    s = s.strip("\"' ")
+    # Remove qualquer variação de http:// ou https:// duplicada
+    s = re.sub(r'^(https?://)+', '', s, flags=re.IGNORECASE).strip("/ ")
+    return f"http://{s}/"
 
-PBX_URL = raw_url
-PBX_USER = os.getenv("PBX_USER", "lucas").strip().strip('"\'')
-PBX_PASSWORD = os.getenv("PBX_PASSWORD", "lcsu251535").strip().strip('"\'')
+def limpar_credencial(chave, padrao):
+    s = os.getenv(chave, padrao).strip()
+    if "=" in s:
+        s = s.split("=", 1).strip()
+    elif ":" in s and s.lower().startswith(chave.lower()):
+        s = s.split(":", 1).strip()
+    return s.strip("\"' ")
+
+PBX_URL = sanitizar_url(os.getenv("PBX_URL", "177.10.116.84"))
+PBX_USER = limpar_credencial("PBX_USER", "lucas")
+PBX_PASSWORD = limpar_credencial("PBX_PASSWORD", "lcsu251535")
 
 RAMAIS = [
     {"ramal": "2003", "nome": "Fernanda"},
@@ -28,7 +43,7 @@ BASE_DOWNLOAD_DIR = os.path.join(os.getcwd(), "ligacoes", DATA_DIR)
 
 def realizar_login(page):
     print(f"[*] Acessando {PBX_URL}...")
-    page.goto(PBX_URL, timeout=60000)
+    page.goto(PBX_URL, timeout=60000, wait_until="load")
     
     user_input = page.locator("input[name*='user'], input[name*='login'], input[type='text']").first
     pass_input = page.locator("input[type='password']").first
@@ -201,6 +216,16 @@ def main():
                 })
 
             gerar_relatorio(dados_consolidados)
+
+        except Exception as e:
+            print(f"[!] Falha durante a execução: {e}")
+            try:
+                caminho_screenshot = os.path.join(BASE_DOWNLOAD_DIR, "screenshot_erro.png")
+                page.screenshot(path=caminho_screenshot)
+                print(f"[*] Screenshot do estado atual salvo em: {caminho_screenshot}")
+            except Exception as ss_err:
+                print(f"[-] Não foi possível tirar screenshot: {ss_err}")
+            raise e
 
         finally:
             context.close()
