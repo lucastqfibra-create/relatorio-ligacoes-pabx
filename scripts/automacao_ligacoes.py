@@ -34,7 +34,6 @@ PBX_URL = extrair_url(os.getenv("PBX_URL", "177.10.116.84"))
 PBX_USER = limpar_credencial("PBX_USER", "lucas")
 PBX_PASSWORD = limpar_credencial("PBX_PASSWORD", "lcsu251535")
 
-# URL direta descoberta no HTML do menu (report.calls.detailed)
 URL_REGISTROS_DIRETO = f"{PBX_URL}pbxip/framework/container.php?token=MAIN/cmVwb3J0LmNhbGxzLmRldGFpbGVk"
 
 RAMAIS = [
@@ -53,8 +52,7 @@ def realizar_login(page):
     time.sleep(2)
 
     alvo = None
-    user_input = None
-    pass_input = None
+    user_input, pass_input = None, None
 
     for _ in range(10):
         for f in [page] + page.frames:
@@ -94,20 +92,15 @@ def realizar_login(page):
 
 
 def acessar_tela_registros(page):
-    """Acessa diretamente o módulo container.php de registros de ligações."""
     print(f"[*] Acessando módulo de registros direto: {URL_REGISTROS_DIRETO}...")
     page.goto(URL_REGISTROS_DIRETO, timeout=60000, wait_until="networkidle")
     time.sleep(3)
 
-    # Se a página foi carregada diretamente, o frame alvo é a própria page
     if page.locator("#src").count() > 0 or page.locator("#confirm").count() > 0:
-        print("[+] Tela de registros carregada diretamente na página principal!")
         return page
 
-    # Caso ainda esteja dentro de algum frame (ex: container)
     for f in page.frames:
         if f.locator("#src").count() > 0 or f.locator("#confirm").count() > 0:
-            print(f"[+] Tela de registros localizada dentro do frame '{f.name}'!")
             return f
 
     return page
@@ -128,6 +121,24 @@ def converter_gsm_para_wav(caminho_gsm):
         return caminho_gsm
 
 
+def detectar_total_paginas(escopo):
+    """Detecta o total de páginas exibidas na paginação do Flexigrid (ex: '1 / 5')."""
+    total = 1
+    # Procura por elementos que contenham '/ X'
+    elementos = escopo.locator(".pcontrol, .pDiv, .pGroup, span:has-text('/'), div:has-text('/')").all()
+    for el in elementos:
+        try:
+            texto = el.inner_text().strip()
+            match = re.search(r"/\s*(\d+)", texto)
+            if match:
+                total = max(total, int(match.group(1)))
+                print(f"[+] Total de páginas identificado: {total} (texto: '{texto}')")
+                break
+        except Exception:
+            pass
+    return total
+
+
 def filtrar_e_baixar_ligacoes(page, escopo, ramal_info):
     ramal = ramal_info["ramal"]
     nome = ramal_info["nome"]
@@ -136,12 +147,12 @@ def filtrar_e_baixar_ligacoes(page, escopo, ramal_info):
 
     print(f"\n[*] =================== PROCESSANDO RAMAL {ramal} ({nome}) ===================")
 
-    # 1. Atualizar campos de data (De e Até) para ontem
+    # 1. Atualizar datas para o dia anterior
     for inp in escopo.locator("input[type='text'], input:not([type])").all():
         try:
             val = inp.input_value()
             if re.match(r"^\d{2}/\d{2}/\d{4}$", val):
-                print(f"[*] Atualizando data de '{val}' para '{DATA_ONTEM_BR}'...")
+                print(f"[*] Atualizando data ({val}) para {DATA_ONTEM_BR}...")
                 inp.fill(DATA_ONTEM_BR)
         except Exception:
             pass
@@ -173,19 +184,18 @@ def filtrar_e_baixar_ligacoes(page, escopo, ramal_info):
     time.sleep(5)
     page.wait_for_load_state("networkidle")
 
-    # 5. Baixar as gravações navegando pelas páginas
+    # 5. Detecta quantas páginas de resultados existem (ex: 5)
+    total_paginas = detectar_total_paginas(escopo)
     chamadas_baixadas = []
-    pagina_atual = 1
-    max_paginas = 6
 
-    while pagina_atual <= max_paginas:
-        print(f"[*] Verificando chamadas na página {pagina_atual}...")
-        
-        # Localiza as linhas tr_ da tabela
+    for pagina_atual in range(1, total_paginas + 1):
+        print(f"\n[*] --- Processando Página {pagina_atual} de {total_paginas} ---")
+
+        # Localiza linhas da tabela
         linhas = escopo.locator("tr[id^='tr_']").all()
         if len(linhas) == 0:
             linhas = [r for r in escopo.locator("table tr").all() if r.locator("td").count() >= 8]
-        
+
         print(f"[*] Total de linhas encontradas na página {pagina_atual}: {len(linhas)}")
 
         for idx, row in enumerate(linhas):
@@ -200,15 +210,15 @@ def filtrar_e_baixar_ligacoes(page, escopo, ramal_info):
                     destino = tds if len(tds) > 3 else ""
                     status = tds if len(tds) > 4 else ""
 
-                    print(f"    [+] Gravação detectada: {data_hora} | Destino: {destino} | Duração: {duracao}")
+                    print(f"    [+] Gravação detectada (Pág {pagina_atual}): {data_hora} | Destino: {destino} | Duração: {duracao}")
 
-                    # 1. Clica na nota musical
+                    # 1. Clica na nota musical para abrir a caixinha
                     icone_audio.click()
                     time.sleep(1)
 
-                    # 2. Clica no botão Salvar que abre na célula
-                    btn_salvar = row.locator("td:nth-of-type(10) > div img, td:nth-child(10) > div img, img[alt*='Salvar' i], a:has(img[alt*='Salvar' i])").first
-                    
+                    # 2. Clica no botão Salvar que aparece na célula
+                    btn_salvar = row.locator("td:nth-of-type(10) > div img, td:nth-child(10) > div img, img[alt*='Salvar' i], div img").first
+
                     with page.expect_download(timeout=15000) as download_info:
                         if btn_salvar.count() > 0 and btn_salvar.is_visible():
                             btn_salvar.click()
@@ -220,9 +230,9 @@ def filtrar_e_baixar_ligacoes(page, escopo, ramal_info):
                     nome_gsm = f"ligacao_{ramal}_p{pagina_atual}_{idx}_{nome_original}"
                     caminho_gsm = os.path.join(pasta_destino, nome_gsm)
                     download.save_as(caminho_gsm)
-                    print(f"        -> Arquivo GSM salvo: {nome_gsm}")
+                    print(f"        -> GSM salvo: {nome_gsm}")
 
-                    # Converte para WAV
+                    # Converte de .gsm para .wav
                     caminho_wav = converter_gsm_para_wav(caminho_gsm)
 
                     chamadas_baixadas.append({
@@ -236,21 +246,41 @@ def filtrar_e_baixar_ligacoes(page, escopo, ramal_info):
             except Exception as e:
                 pass
 
-        # Paginação: avança para a próxima página clicando no '>'
-        btn_proximo = escopo.locator("a:has-text('>'), button:has-text('>'), input[value='>']").first
-        try:
-            if btn_proximo.count() > 0 and btn_proximo.is_visible() and btn_proximo.is_enabled():
-                print("[*] Avançando para a próxima página de chamadas...")
-                btn_proximo.click()
-                time.sleep(3)
-                page.wait_for_load_state("networkidle")
-                pagina_atual += 1
-            else:
-                break
-        except Exception:
-            break
+        # 6. Avança para a próxima página no Flexigrid se não for a última
+        if pagina_atual < total_paginas:
+            proxima = pagina_atual + 1
+            print(f"[*] Avançando para a página {proxima} no Flexigrid...")
 
-    print(f"[*] Total de gravações baixadas para {nome} (Ramal {ramal}): {len(chamadas_baixadas)}")
+            avancou = False
+
+            # Método 1: Clicar no botão .pNext do Flexigrid
+            btn_next = escopo.locator(".pNext, .pButton.pNext, div.pNext, .pGroup .pNext, .pDiv .pNext").first
+            try:
+                if btn_next.count() > 0 and btn_next.is_visible():
+                    btn_next.click()
+                    avancou = True
+            except Exception:
+                pass
+
+            # Método 2: Digitar o número da página no campo .pcontrol input e teclar Enter
+            if not avancou:
+                inp_page = escopo.locator(".pcontrol input, input[name='page']").first
+                try:
+                    if inp_page.count() > 0 and inp_page.is_visible():
+                        inp_page.fill(str(proxima))
+                        inp_page.press("Enter")
+                        avancou = True
+                except Exception:
+                    pass
+
+            if avancou:
+                time.sleep(4)
+                page.wait_for_load_state("networkidle")
+            else:
+                print(f"[!] Não foi possível acionar o botão de próxima página para ir para a pág {proxima}.")
+                break
+
+    print(f"\n[*] Total consolidado de gravações baixadas para {nome} (Ramal {ramal}): {len(chamadas_baixadas)}")
     return chamadas_baixadas
 
 
@@ -271,7 +301,7 @@ def transcrever_chamadas(dados_chamadas):
             item["transcricao"] = texto
         except Exception as e:
             item["transcricao"] = f"[Erro na transcrição: {e}]"
-        
+
         resultados.append(item)
 
     return resultados
