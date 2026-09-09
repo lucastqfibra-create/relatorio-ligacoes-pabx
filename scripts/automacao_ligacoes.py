@@ -7,19 +7,15 @@ from playwright.sync_api import sync_playwright
 import whisper
 
 def extrair_url(valor_env):
-    """Extrai estritamente o IP ou domínio do PABX, evitando caracteres inválidos."""
     if not valor_env:
         return "http://177.10.116.84/"
-    
     limpo = re.sub(r"\s+", "", valor_env)
     match_ip = re.search(r"(?:\d{1,3}\.){3}\d{1,3}(?::\d+)?", limpo)
     if match_ip:
         return f"http://{match_ip.group(0)}/"
-    
     dominio = re.sub(r"^(https?://)+", "", limpo, flags=re.IGNORECASE).strip("/'\"")
     if dominio and not dominio.startswith("*") and "." in dominio:
         return f"http://{dominio}/"
-    
     return "http://177.10.116.84/"
 
 def limpar_credencial(chave, padrao):
@@ -47,19 +43,88 @@ DATA_DIR = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
 BASE_DOWNLOAD_DIR = os.path.join(os.getcwd(), "ligacoes", DATA_DIR)
 
 
+def encontrar_campos_login(escopo):
+    """Varre um frame ou página buscando os campos de usuário e senha."""
+    seletores_user = [
+        "input[name*='user']", "input[name*='login']", "input[name*='usuario']",
+        "input[id*='user']", "input[id*='login']", "input[id*='usuario']",
+        "input[placeholder*='usuário' i]", "input[placeholder*='login' i]",
+        "input:not([type='hidden']):not([type='password']):not([type='submit']):not([type='checkbox']):not([type='radio'])"
+    ]
+    seletores_pass = [
+        "input[type='password']", "input[name*='pass']", "input[name*='senha']",
+        "input[id*='pass']", "input[id*='senha']"
+    ]
+
+    user_field = None
+    pass_field = None
+
+    for sel in seletores_user:
+        loc = escopo.locator(sel).first
+        try:
+            if loc.count() > 0 and loc.is_visible():
+                user_field = loc
+                break
+        except Exception:
+            pass
+
+    for sel in seletores_pass:
+        loc = escopo.locator(sel).first
+        try:
+            if loc.count() > 0 and loc.is_visible():
+                pass_field = loc
+                break
+        except Exception:
+            pass
+
+    return user_field, pass_field
+
+
 def realizar_login(page):
     print(f"[*] Acessando central PABX em {PBX_URL}...")
     page.goto(PBX_URL, timeout=60000, wait_until="domcontentloaded")
+    time.sleep(2)
     
-    user_input = page.locator("input[name*='user'], input[name*='login'], input[type='text']").first
-    pass_input = page.locator("input[type='password']").first
-    
+    print(f"[*] URL atual: {page.url}")
+    print(f"[*] Título da página: '{page.title()}'")
+
+    # Mapeia os inputs visíveis para diagnóstico
+    todos_inputs = page.locator("input").all()
+    print(f"[*] Total de inputs encontrados na página principal: {len(todos_inputs)}")
+    for i, inp in enumerate(todos_inputs):
+        try:
+            n = inp.get_attribute("name") or ""
+            i_id = inp.get_attribute("id") or ""
+            t = inp.get_attribute("type") or "text"
+            print(f"    Input #{i+1}: name='{n}', id='{i_id}', type='{t}'")
+        except Exception:
+            pass
+
+    # Tenta localizar campos na página principal
+    user_input, pass_input = encontrar_campos_login(page)
+
+    # Se não encontrou, verifica se a tela está dentro de um frame/iframe
+    if not user_input and len(page.frames) > 1:
+        print(f"[*] Procurando campos dentro de {len(page.frames)} frames/iframes...")
+        for idx, f in enumerate(page.frames):
+            print(f"    Frame #{idx+1}: name='{f.name}', url='{f.url}'")
+            u, p = encontrar_campos_login(f)
+            if u and p:
+                user_input, pass_input = u, p
+                print(f"[+] Campos de login encontrados dentro do Frame #{idx+1}")
+                break
+
+    if not user_input or not pass_input:
+        raise Exception(f"Não foi possível identificar os campos de login na página. Título: '{page.title()}', URL: '{page.url}'")
+
+    print("[*] Preenchendo credenciais...")
     user_input.fill(PBX_USER)
     pass_input.fill(PBX_PASSWORD)
-    
-    page.locator("button[type='submit'], input[type='submit'], button:has-text('Entrar'), button:has-text('Login')").first.click()
+
+    botao = page.locator("button[type='submit'], input[type='submit'], button:has-text('Entrar'), button:has-text('Login'), input[value*='Entrar' i], input[value*='Login' i]").first
+    botao.click()
     page.wait_for_load_state("networkidle")
-    print("[+] Login realizado com sucesso.")
+    print("[+] Formulário de login enviado com sucesso.")
 
 
 def navegar_para_registro_ligacoes(page):
@@ -205,7 +270,11 @@ def main():
             headless=True,
             args=["--no-sandbox", "--disable-setuid-sandbox"]
         )
-        context = browser.new_context(accept_downloads=True)
+        # Suporte a HTTP Basic Auth e downloads
+        context = browser.new_context(
+            accept_downloads=True,
+            http_credentials={"username": PBX_USER, "password": PBX_PASSWORD}
+        )
         page = context.new_page()
 
         try:
