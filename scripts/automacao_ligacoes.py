@@ -138,7 +138,7 @@ def detectar_total_paginas(escopo):
 
 
 def avancar_pagina_flexigrid(page, escopo, proxima_pagina):
-    """Avança para a próxima página na tabela do Flexigrid com busca reversa de elementos."""
+    """Avança para a próxima página no Flexigrid acionando os eventos jQuery nativos."""
     print(f"[*] Solicitando mudança para a página {proxima_pagina}...")
 
     candidatos = [escopo, page] + [f for f in page.frames if f != escopo and f != page]
@@ -146,76 +146,70 @@ def avancar_pagina_flexigrid(page, escopo, proxima_pagina):
     for idx_c, c in enumerate(candidatos):
         try:
             res_js = c.evaluate(f"""() => {{
-                // 1. Tenta clique direto por classe
-                let directBtn = document.querySelector('.pNext, .pButton.pNext, div.pNext');
-                if (directBtn && !directBtn.classList.contains('pDisable')) {{
-                    directBtn.click();
-                    return 'pNext clicado direto';
-                }}
+                // 1. Aciona via jQuery diretamente nos botões do Flexigrid
+                if (window.jQuery) {{
+                    let jNext = window.jQuery('.pNext, .pButton.pNext, div.pNext');
+                    if (jNext.length && !jNext.hasClass('pDisable')) {{
+                        jNext.trigger('click');
+                        return 'jQuery .pNext clicado';
+                    }}
 
-                // 2. Busca reversa pelo elemento folha que contém a barra '/'
-                let all = Array.from(document.querySelectorAll('*')).reverse();
-                let leaf = all.find(e => e.children.length === 0 && /\\/\\s*\\d+/.test(e.parentElement ? e.parentElement.textContent : ''));
-
-                if (leaf) {{
-                    let pGroup = leaf.closest('.pGroup') || leaf.parentElement;
-                    if (pGroup) {{
-                        // Se houver input de página, altera o valor para proxima_pagina
-                        let inp = pGroup.querySelector('input');
-                        if (inp) {{
-                            inp.value = '{proxima_pagina}';
-                            inp.dispatchEvent(new Event('change', {{ bubbles: true }}));
-                            let ev = new KeyboardEvent('keydown', {{ bubbles: true, cancelable: true, keyCode: 13, key: 'Enter' }});
-                            inp.dispatchEvent(ev);
-                        }}
-
-                        // Clica no botão do próximo grupo irmão (o botão '>')
-                        let nextGroup = pGroup.nextElementSibling;
-                        while (nextGroup && !nextGroup.querySelector('.pButton, div, a, img, span')) {{
-                            nextGroup = nextGroup.nextElementSibling;
-                        }}
-                        if (nextGroup) {{
-                            let target = nextGroup.querySelector('.pNext, .pButton, div, a, img, span') || nextGroup;
-                            target.click();
-                            return 'botao do proximo pGroup clicado: ' + target.className;
-                        }}
+                    // Dispara pelo input de página via jQuery
+                    let jInput = window.jQuery('.pcontrol input, input[name="page"]');
+                    if (jInput.length) {{
+                        jInput.val('{proxima_pagina}').trigger('change');
+                        let e = window.jQuery.Event('keydown');
+                        e.keyCode = 13;
+                        e.which = 13;
+                        jInput.trigger(e);
+                        return 'jQuery input enter disparado para {proxima_pagina}';
                     }}
                 }}
 
-                // 3. Fallback: procura qualquer input com name="page"
-                let pInput = document.querySelector('.pcontrol input, input[name="page"]');
-                if (pInput) {{
-                    pInput.value = '{proxima_pagina}';
-                    pInput.dispatchEvent(new Event('change', {{ bubbles: true }}));
-                    let ev = new KeyboardEvent('keydown', {{ bubbles: true, cancelable: true, keyCode: 13, key: 'Enter' }});
-                    pInput.dispatchEvent(ev);
-                    return 'input page alterado para {proxima_pagina}';
+                // 2. Busca estritamente dentro de document.body pelo container do Flexigrid
+                let pDiv = document.body.querySelector('.pDiv, .pDiv2');
+                if (pDiv) {{
+                    let btn = pDiv.querySelector('.pNext, .pButton.pNext');
+                    if (btn) {{
+                        btn.click();
+                        return 'DOM pDiv pNext clicado';
+                    }}
+                    let allBtns = Array.from(pDiv.querySelectorAll('.pButton, div[class*="btn"], div[class*="Button"]'));
+                    if (allBtns.length >= 4) {{
+                        allBtns.click();
+                        return 'pDiv allBtns clicado';
+                    }}
+                }}
+
+                // 3. Clique direto no botão HTML nativo
+                let btnHtml = document.body.querySelector('.pNext, .pButton.pNext, div.pNext, [class*="pNext"]');
+                if (btnHtml) {{
+                    btnHtml.click();
+                    return 'DOM direto pNext clicado';
                 }}
 
                 return 'nao encontrado';
             }}""")
 
             if res_js != 'nao encontrado':
-                print(f"    [+] Paginação acionada com sucesso no frame #{idx_c}: {res_js}")
+                print(f"    [+] Ação de paginação executada no frame #{idx_c}: {res_js}")
                 time.sleep(5)
                 page.wait_for_load_state("networkidle")
                 return True
         except Exception:
             pass
 
-    # Diagnóstico caso não tenha acionado
-    try:
-        diag = escopo.evaluate("""() => {
-            let all = Array.from(document.querySelectorAll('*')).reverse();
-            let leaf = all.find(e => e.children.length === 0 && /\\/\\s*\\d+/.test(e.parentElement ? e.parentElement.textContent : ''));
-            if (leaf && leaf.parentElement && leaf.parentElement.parentElement) {
-                return leaf.parentElement.parentElement.outerHTML;
-            }
-            return 'nao localizado';
-        }""")
-        print(f"    [*] HTML do bloco de paginação: {diag[:300]}")
-    except Exception:
-        pass
+    # Fallback via Playwright com force=True
+    for c in candidatos:
+        try:
+            btn = c.locator(".pNext, .pButton.pNext, div.pNext, [class*='pNext']").first
+            if btn.count() > 0:
+                btn.click(force=True)
+                time.sleep(5)
+                page.wait_for_load_state("networkidle")
+                return True
+        except Exception:
+            pass
 
     print(f"    [!] Não foi possível avançar para a página {proxima_pagina}.")
     return False
@@ -280,7 +274,7 @@ def filtrar_e_baixar_ligacoes(page, escopo, ramal_info):
     for pagina_atual in range(1, total_paginas + 1):
         print(f"\n[*] --- Processando Página {pagina_atual} de {total_paginas} ---")
 
-        # Linhas de chamadas da tabela
+        # Linhas da tabela
         linhas = escopo.locator("tr[id^='tr_']").all()
         if len(linhas) == 0:
             linhas = [r for r in escopo.locator("table tr").all() if r.locator("td").count() >= 8]
@@ -295,7 +289,7 @@ def filtrar_e_baixar_ligacoes(page, escopo, ramal_info):
                 if icone_audio.count() > 0 and icone_audio.is_visible():
                     colunas = [td.inner_text().strip() for td in row.locator("td").all()]
 
-                    # Mapeamento com os índices corretos
+                    # Mapeamento correto com os dados reais
                     data_hora = colunas if len(colunas) > 1 and colunas else (colunas[0] if colunas else "")
                     duracao = colunas if len(colunas) > 2 else ""
                     origem_num = colunas if len(colunas) > 3 else ""
@@ -304,7 +298,7 @@ def filtrar_e_baixar_ligacoes(page, escopo, ramal_info):
 
                     print(f"    [+] Gravação detectada (Pág {pagina_atual}): {data_hora} | Destino: {destino} | Duração: {duracao}")
 
-                    # 1. Clica na nota musical para abrir a caixinha
+                    # 1. Clica na nota musical
                     icone_audio.click()
                     time.sleep(1)
 
