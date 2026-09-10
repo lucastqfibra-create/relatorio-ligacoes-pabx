@@ -24,7 +24,7 @@
 - **Arquivo:** `ligacao_2003_p1_7_20260909-164629-2003-5534999571120-1788983185.45870-1788983189.wav`
 
 **Transcrição do Áudio:**
-> Então, obrigado ami рукato Philichi
+> Então, obrigado meu. Gabou, obrigado o senhor... Ah, de boaza intercebza Pastorigato, pardonéfrom acalao
 
 ---
 
@@ -48,7 +48,7 @@
 - **Arquivo:** `ligacao_2003_p1_13_20260909-162700-2003-5537999981473-1788982017.45603-1788982020.wav`
 
 **Transcrição do Áudio:**
-> Não jogueiro a gente eiberal o aplragem te vectors Cristo
+> O modele da essença é hipótona
 
 ---
 
@@ -60,7 +60,7 @@
 - **Arquivo:** `ligacao_2003_p1_16_20260909-161928-2003-553436629978-1788981565.45450-1788981568.wav`
 
 **Transcrição do Áudio:**
-> Conta em que tem que ir lá na roda. Tem que ir lá na roda. Ata, você trabalha com o qual na roda. Está rora da coroça. Você não tem da fibrata, não, Mousa. Porque eu estou olhando aqui no Instagram, acho que é bem. É bem assim, mas... Se vai atrasar, eu vou verificar para vocês. Tá. Olha, a gente trabalha com a morata. O material é mesmo com o oito, viu? Eu estava vendo um design, o design da... Da sinta mais bonito. Ai, bem, não são trabalho para a sambaia. Nossa, eu estou muito bonito. Eu vou tentar achar dele. Qualquer coisa pesquisa, cabe esse compente para vocês. Você cai um posto comprando com vocês. Combinado, vou falar. Obrigada, meu. A gente nasce. Tá.
+> Conta em que tem que ir lá na roda. Tem que ir lá na roda. Ata, você trabalha com o qual na roda. Está rora da coroça. Você não tem da fibrata, não, Mousa. Porque eu estou olhando aqui no Instagram, acho que é bem. É bem assim, mas... Se vai atrasar, eu vou verificar para vocês. Tá. Olha a gente que trabalha com a roda. Eu não sei, ela mesma coisa, viu. Eu estava vendo desainidade. O desainidade, da cidadsa mais bonito. Ah, e desde a cidadsa, não estava a ver para o cidadsa. Nossa, eu estou muito bonito. Eu vou tentar achar dele. Qualquer coisa pesquisa, cabe se compente para vocês. E aí eu posso te comprar com vocês. Eu vou tentar achar dele. Qualquer coisa pesquisa, cabe se compente para vocês. Comina, eu vou falar. Obrigada, gente. É muito bom. A gente nasce. Tá.
 
 ---
 
@@ -72,7 +72,7 @@
 - **Arquivo:** `ligacao_2003_p1_19_20260909-161454-2003-5534992688865-1788981291.45276-1788981294.wav`
 
 **Transcrição do Áudio:**
-> que você não sabe se bem re que a pessoa não é feita
+> Muito delicate, °− se voltante ele coloca o发ôme dos benos. Há um dотивo unir, reinforcement arriesio do Neoз you, teaspoons, e se o还有 um trânsito de perdoantes, o microquard, quando terem protesters infiantos bem gráficos Raz ї uma mustache para que ele genere GNP e blackberryronicidade isolada, de troquemond superior na kalau para corn ambitions
 
 ---
 
@@ -84,7 +84,7 @@
 - **Arquivo:** `ligacao_2003_p1_22_20260909-160938-2003-5534988119840-1788980976.45219-1788980978.wav`
 
 **Transcrição do Áudio:**
-> Llão ett won This is legal
+> Para um dia,行 presenting! Estão...
 
 ---
 
@@ -112,7 +112,7 @@
 - **Arquivo:** `ligacao_2005_p1_7_20260909-171017-2005-553137710976-1788984612.46132-1788984617.wav`
 
 **Transcrição do Áudio:**
-> o padrão máximo a paragem. O padrão tudo bem com o seu Paulo? Jovem a gente é a minha fé, não é? Não tem de? Não tem de sem compra. O sério analógio do Nauta Lógia. A gente, o número de lá é o final... 3035, 8. Não é... 3. Estes 3, 7, 8, 5 e 3. 3, 7, 8, 5, 6 e 3. E... Obrigada, não? Nada. Tchau. Tchau.
+> zur o
 
 ---
 
@@ -136,7 +136,7 @@
 - **Arquivo:** `ligacao_2005_p1_13_20260909-165352-2005-5531984633096-1788983626.45953-1788983632.wav`
 
 **Transcrição do Áudio:**
-> Desc discord memang não conseguiaplinhar Leiticate e não conseguia fazer essa pedidas. Estou favoritlike normalmente na carne.
+> 17 31 que agkicham. 26 36 7
 
 ---
 
@@ -148,7 +148,7 @@
 - **Arquivo:** `ligacao_2005_p1_16_20260909-164011-2005-553137736699-1788982805.45809-1788982811.wav`
 
 **Transcrição do Áudio:**
-> Eu estou a ser um arrafado de batalho. Batalho, de tudo bem com que eu falo. Um dia não sei a Arthulho. Não entendi? Arthulho. Preatou um arrafado. Aqui é a de olho, tudo bem. Tudo o senhor. O senhor não tem que encontrar. Contro assim. Eu poderia falar com ele, falou. Estou a trair. Não te enfava. A lua. A lua. A lua. A lua está internando. Oi. Foi internada a julha que dá fibraso em dia, tudo bem? Não estou a filha, não fui obrigado. Eu já comprei. Eu que agradei. Eu já. Eu já comprei. Eu que agradei. Tchau, tchau. Tchau.
+> o seu salvo na parte de batalho. Boa tarde, tudo bem com que eu falo. Não entendi? Perto? Prearto, não pode. Aquear de olho tudo bem. Muito sem você. O Fernando sem contra. Encontro sem? Eu poderia falar com ele, falou. Atra pra ele, que a gente sava. Obrigado. A lua. A lua. A lua. A lua boa tarde, Fernando. Oi. Foi Fernando da Agile, aqui da Fibrashtang, de piça do bem? Não vou pedir, não. Fia obrigado. Eu já comprei. Eu quero agradecer. Eu quero agradecer. Eu quero agradecer. Eu quero agradecer. Eu quero agradecer. Eu quero agradecer. Eu quero agradecer.
 
 ---
 
@@ -172,7 +172,7 @@
 - **Arquivo:** `ligacao_2005_p1_22_20260909-162942-2005-5531996463456-1788982179.45670-1788982182.wav`
 
 **Transcrição do Áudio:**
-> A Lua, a Lua boa tarde, com quem falam? Saianes. Saianes tudo bem? Quem? Porque a Julia da Fibraste. Uma área tem contra. Vou restaurar a Sheila ali, espera aí. A França? Bonsos. Olha só ela. Ele tem amigo然后 é um cajete emothing. Isso mesmo! O Wallace dá para dele ir ao final. crazy. E, de vida 10,425 lei. Com您as! É isso? A helt alguma,imas��게요makers! bom
+> A Lua, a Lua boa tarde, com quem falam? Saianes. Saianes tudo bem? Quem? Porque a Julia da Fibraste. Uma área tem contra. Vou restaurar a Sheila ali, espera aí. Um bom salca, ele tem as primeiras mancas da área ali embaixo, mas ele não faz a tendência. O desafio dele é o final, 34,5 lei. É isso. Ah, sim, eu vou mandar um link aí, espere. Obrigado, viu? Pou, nada, a gente vai trabalhar.
 
 ---
 
