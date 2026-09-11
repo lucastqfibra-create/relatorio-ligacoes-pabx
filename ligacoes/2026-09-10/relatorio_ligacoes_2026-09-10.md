@@ -36,7 +36,7 @@
 - **Arquivo:** `ligacao_2003_p1_10_20260910-162257-2003-5534997808403-1789068175.48617-1789068177.wav`
 
 **Transcrição do Áudio:**
-> Eu que agradei, você quer que manda a tabela de fresa atualizada e para vocês? Não, agora não, não, não, não, não, não, não, não, não, não, não, quando a gente o pedia um pé com a tabela, tá bom, então muito obrigada, bozendo, não, ainda bozendo. Não, isso, tá.
+> Eu que agradeço. Você quer que manda o tabela de fresos atualizados aí para vocês? Não, agora não, não, não. Você quer que isso era agora, não? E quando a gente fope de um peço o tabela? Tá bom, então muito obrigada, bozendo. Não, não, não, bonitos. Não, isso, tá.
 
 ---
 
@@ -60,7 +60,7 @@
 - **Arquivo:** `ligacao_2003_p1_16_20260910-151611-2003-5537991227621-1789064170.48153-1789064171.wav`
 
 **Transcrição do Áudio:**
-> O que você tem? A Lua. Eu sou o ex-seguer. E eu sou o ex-seguer, graças a Deus. Eu sou a Fernando da Cidraça. Não entendi? Eu sou a Fernando da Cidraça. Eu estou começando com você no Adjado. E você? Deixa eu te falar. Tem alguns depósito de minossos que compram a nossa mão. Que os Jorros de obras, os ferrais de esquela do ar do, ele tem um depósito. Deixa eu ver quem mais ele é aqui. Deixa eu ver o seu vítico, a polina. Ele também compra com a gente. Qual é que é? O seu vítico é a polina. A june a dia, é cuntunado também compra. O depósito, o depósito, o de Newscoma. O de News, deixa eu ver quem tem... O depósito de Beca. Beca. Será que você não vai jalar ele também a depósito de Beca? Não tem Newscom. Não tem algo de Newscom. Qual? Newscom, deixa eu a uma... Newscom. É... É... É... É... É... É... É... É... É... Deixa eu ver quem... É... É... Tem também um depósito de uma. Você conhece? Não. Não. Ele também compra com a gente. É... Tem que eu deixar esse Beca. Eu vou ligar pra ele. Você vai ligar pra ele. Você vai ligar pra ele. E... Aí eu vou arriscar o perdimento. Tá. Você vai se experimentar. Você sabe o número de telefone dele? Você me fala o 4 de número dele? Eu posso olhar no banco de dados. Sim. Tá. Você quer me mandar? Eu olho aqui no sistema. Eu consigo ver se ele comprou não com a gente. Ou no tempo dele. Eu consigo olhar. Que dependendo de poder ter um nome. Pode ter que estar um nome, eu tenho esse. Eu te falei que compra bastante frequentes com a gente. Você acha mais algum aqui? Até esse aqui. Você sabe onde é ele aqui? Espera, ele não é um melhor régo. Vai ficar mais tarde. Vai ficar mais tarde. Sim. Sim. Sim. Sim. É de Vinopros, não é isso? É. Apenas. Deixa eu ver se o que ele pode ver. Eu tenho um jeito de ver se ele pode ver. Sim. Não, deixa eu ver se ele pode ver. Você sabe o que eu posso ver? Eu te mando eu contar. E se é hora direitinho, eu vou entender e contar que fez. Tá. Ele tem num banco de dados aqui. Deixa eu ver se ele já comprou de quais a gente tem. Tem mil. Deixa eu ver no contato. Não, ainda ele não comprou ainda com a gente não. Aqui no sistema, tá? Aqui eu já mandei a... O catálogo para ele. Mas comprar ainda não. Compropo esse que eu te falei, se você quiser te mandou o contato dele para você. Desce, se ele é um... De Vinopros, você quer te mandar? Só, talvez, algo com o link do que ele é, eu fico mais forte. Eu vou entrar aqui no... no... no... no... no tangirini, no meu contato azul. E copiu o... o telefone dele. Você quer que coloco o salto telefone? Eu só quero que coloco nome dos... nome e o número de fósseis. Você pode colocar nome de voz. E aí eu vejo o que eu conheci. Tá. Vou mandar agora. Eu vou te mandar um pg. E aí também, se não tá, é pra mim. Tá. Eu não sei se eu não tem. Não sei se eu não tem. Eu me mandei, talvez seja a monta, eu também. Vou mandar pra nossa conversa. Eu também. Eu não sei se eu não tem. Eu não sei se eu não tem. Ataço, bota de malucem. Ah, esse é muito, achei que aquilo era o Saméia. Era a tadeira de preço. É, não. Eu até te mandei com a quantidade. Eu não sei se eu não tem que colocar tanto. É que eu tinha que passar, tu. Só que as cores não vão apertar, valor não. Não, não. Não. Não. Tá. Eu vou conferir aqui. Então, eu já te falo. Então, eu sei que eu não tenho que ter que mandar. Tá. Eu vou entrar aqui no... no peito. Aqui já tinha uma vez aí agora. Tá. Tá, viu? É, não. É que eu gradi. Tá, já. Não, não. Não, não.
+> E aí? Alô? Eu sou o ex-desenho, mas... E aí, você? E aí, graças a Deus. Eu sou a Fernanda da Cidraça. Não entendi? Eu sou a Fernanda da Cidraça. Eu estou conversando com você no Adjab. E você? Deixa eu te falar. Tem alguns depósso índios, que compran a nossa mão. E aí, pra gente esquela do ardo, deixa eu ver quem mais é aqui. O teu vítico, a polina, ele também compra com a gente. Qual é o que é? O teu vítico é a polina. A junha de... é... é... é... é... O depósso vem aqui, o de Newscoma. O de News, deixa eu ver que tem... O depósso vem aqui. Beca. Beca. Deixa eu ver. Beca. Beca. Será que você não veja o outro dele também? É o depósso vem aqui. Não, não, não. É algo que ele viu. Qual? O que é o seu vítico? O seu vítico? O seu vítico? O seu vítico. Tem também o depósso em a uma. Você conhece? É isso também? Não, eles não. Eles também comprancomam a gente. Tem que andar a xa e a senheca. Tem que andar a xa e a senheca. Tem que andar a xa e a senheca. Tem que andar a xa e a senheca. Eu vou ligar pra ele, o que mais sabe o que é pra ele e... A eu conversa que ele perde em ele. Tá, eu sou o senheca. Eu sou senheca. Eu sou o senheca. Eu sou senheca. Eu sou senheca. Eu sou senheca. Eu sou senheca. Eu sou senheca. não dá que eu olha aqui no sistema, se tiver no sistema eu consigo ver se ele comprou não com a gente ou no tempo dele, que eu consigo olhar, que dependendo pode ter um nome é outro, porque eu tenho esse que eu te falei que compra bastante frequentes com a gente, ou eu acho mais daqui até tem esse esse aqui já só veo Ohm Pepper aqui vai ficar mais f Vamos soccer l郵演 É isso? É. Apenas aqui. Deixa eu ver que pelo que você pode fazer. Eu tenho um e-dente de um e-dente de um e-dente. Não, deixa eu ver que é o que você pode fazer. É o que você pode fazer? Eu te mando eu contar. É isso, é hora direitinho. Eu vou ensinar em contar que foi isso. Tá. Ele tem num banco de dados aqui. Deixa eu ver se ele já encontrou, que é o que a gente tem. Não tem. Deixa eu ver no contato. Não, ainda não encontrou ainda com a gente não. Aqui no meu tema, tá aqui que eu já mandei a... O catálogo pra ele. Mas comprar ainda não. Compropo esse que eu te falei. Se você quiser te mando o contato dele pra você. Desse feedback, eu te vi no Instagram. Eu não me senti aqui, mas... Só, deixa eu ver algo comigo que eu te digo aí. Eu fico mais fácil. Eu vou entrar aqui no Tangerine, no meu contato azul. E copio o telefone dele. Você quer que calou com o saltelefone? E o saltelefone? Eu sei que é que calou com o nome dos... O nome e o número de defaults. Você pode colocar o nome de defaults. Calou. Eu vejo o que eu vou fazer. Eu vou te mandar um piquitinho aí, que nem se montar é pra mim. Tá, não tá. Eu não sei se montei, que não não te vejo. Montei, eu te mandei, talvez seja a montei também. Bom, mas eu não sei se eu convence. Eu também. É que o seu mundo é tão... Atas, mas por que não se engançam? Ah, esse montor, achei que que era o Samé, era o Atabé de preço. É, não, eu até te mandei com a quantidade, não sei se eu não me costa. Não é que eu vou passar, só que as cores não vão apertar, não. Não, não é que eu não. Tá, eu vou conferir aqui, então é que eu vou fazer. Então é que você não vai te mostrar. Tá, eu vou entrar aqui no peito aqui e já vou te mandar um alzou e agora. Tá, não me dá, viu? Não, é que eu gravei. Já te arrave.
 
 ---
 
@@ -72,7 +72,7 @@
 - **Arquivo:** `ligacao_2003_p1_19_20260910-135130-2003-5534991180474-1789059087.47641-1789059090.wav`
 
 **Transcrição do Áudio:**
-> Oi, e só a Unaguardamentos hein? Esse aqui selerdeite e olha.
+> Alô... Oi, W Virgini! Oi nós não tinha cristalda não... guest regulation. Tá aqui tudo? Tá. Tá, tá. Um abraço Shen, um abraço!
 
 ---
 
@@ -84,7 +84,7 @@
 - **Arquivo:** `ligacao_2003_p1_22_20260910-134048-2003-5534991847805-1789058444.47444-1789058448.wav`
 
 **Transcrição do Áudio:**
-> Tudo investigated a dove a desce... Tudo vale. Tudo que forma a sua conta, Vielen�! De ouviu, tá bem?sta bem, mineiro assim por pancakes? Tao... Sim. Lmei. O que foi que era raciğim? O que também era raciğim?
+> Estaria nestaża pagada diameter 1 de timed early
 
 ---
 
@@ -148,7 +148,7 @@
 - **Arquivo:** `ligacao_2005_p1_16_20260910-164116-2005-553137167178-1789069273.48741-1789069276.wav`
 
 **Transcrição do Áudio:**
-> Cazabreu? Oatás, com que eu falo? Patrícia com vocês dá. Patrícia que as deulha das fibraste e o homem são sem conta? Sim, somente. Obrigada.
+> Você já abriu? Não está, de contato. Você está com um falo. Você está com um falo? Você está com um falo? Eu não sei. Eu não sei. Obrigado. Eu não sei. Eu não sei. Obrigado. Obrigado. Obrigado. Obrigado. e vai ter uma oriagem também tá na tabela que teve a mente da resína e da fibra tá tá tá aí eu vou mandar aí novamente a tabela pra vocês verificar eu fico guardando quando eu via a bom, obrigada meu padrão, obrigada a ser uma braga outro
 
 ---
 
@@ -160,7 +160,7 @@
 - **Arquivo:** `ligacao_2005_p1_19_20260910-155650-2005-5531998882226-1789066608.48550-1789066610.wav`
 
 **Transcrição do Áudio:**
-> E aí? Oi. A loucota, você do bem? O de Joy. Eu falo como um barro. Um de onde? É da Fimbrarte, tem que ter pias. Você vem? O de Joy graças a Deus e com você. O de vem. A gente está fechando a carga novamente perdião. Eu estou com vergonha de você. E como você está sempre ligando. E eu estou sempre enrolando você. A gente está com os projetos, a anda ainda a menta de repente para. E acaba da gente nunca compra. Entendi. A gente parando os outros novos projetos, a gente está a anda ainda para este tipo de solicitation. Então, a gente publicou, a gente não vai ter benado. Para compreender. Mas qualquer coisa fica dispossão, mas tem que a minha louceta também na D.A.P? A Joy é o final 22.6. E isso isso? Tá bom, vamos ganhar minha louceta com a tabela. A Joy. Obrigada, meu nome é a amada. Eu queria ter sido um desafio. Eu sou o Mêncio.
+> E aí? Oi. A loucota, você do bem? O de J. Eu falo como um barra. Um de ontem para falar? É da febrarte, tem que ter pias. Você vem? O de J, graças a Deus e com você. O de vem. A gente está fechando na carga novamente para o deão. Eu estou com vergonha de você. E como você está sempre ligando. Eu estou sempre enrolando você. A gente está com os projetos, andamento, de repente para. E acaba de a gente nunca compra. Entendi. A gente parando os outros projetos que a gente está vendendo para este tipo. Então, sabe a cara? Mas o link com a gente não vai ter de nada. Para compreender. Qualquer coisa, eu fico a disposição, mas tem que me anonar. E faz também nada? Tá, Joy. É o final 22, que sei. Isso, isso. Tá bom, vamos engamingar o mensage com a tabela. Tá, Joy. Obrigada, meu nome é Ana. Eu queria ter uma condição. Eu vou me mostrar.
 
 ---
 
@@ -183,13 +183,13 @@
   libswscale      7.  5.100 /  7.  5.100
   libswresample   4. 12.100 /  4. 12.100
   libpostproc    57.  3.100 / 57.  3.100
-[mpegts @ 0x55b6852a5f00] Format mpegts detected only with low score of 2, misdetection possible!
-[mpegts @ 0x55b6852a5f00] Could not detect TS packet size, defaulting to non-FEC/DVHS
+[mpegts @ 0x56345992af00] Format mpegts detected only with low score of 2, misdetection possible!
+[mpegts @ 0x56345992af00] Could not detect TS packet size, defaulting to non-FEC/DVHS
 Input #0, mpegts, from '/home/runner/work/relatorio-ligacoes-pabx/relatorio-ligacoes-pabx/ligacoes/2026-09-10/2005_Julia/ligacao_2005_p1_23_20260910-154853-2005-5531971223209-1789066131.48444-1789066133.gsm':
   Duration: N/A, bitrate: N/A
-[in#0/mpegts @ 0x55b6852a5e00] Codec AVOption threads (set the number of threads) has not been used for any stream. The most likely reason is either wrong type (e.g. a video option with no video streams) or that it is a private option of some decoder which was not actually used for any stream.
+[in#0/mpegts @ 0x56345992ae00] Codec AVOption threads (set the number of threads) has not been used for any stream. The most likely reason is either wrong type (e.g. a video option with no video streams) or that it is a private option of some decoder which was not actually used for any stream.
 Output #0, s16le, to 'pipe:':
-[out#0/s16le @ 0x55b6852a9c00] Output file does not contain any stream
+[out#0/s16le @ 0x56345992ec00] Output file does not contain any stream
 Error opening output file -.
 Error opening output files: Invalid argument
 ]
