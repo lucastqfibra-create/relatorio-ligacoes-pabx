@@ -33,7 +33,6 @@ RAMAIS = [
     {"numero": "2005", "nome": "Julia"}
 ]
 
-# Período D-1
 DATA_CONSULTA = (datetime.now() - timedelta(days=1)).strftime("%d/%m/%Y")
 URL_CONTAINER = f"{PBX_URL}/pbxip/framework/container.php?token=MAIN/cmVwb3J0LmNhbGxzLmRldGFpbGVk"
 
@@ -118,7 +117,6 @@ def aplicar_filtros(page, ramal_numero):
     page.goto(URL_CONTAINER, timeout=60000)
     page.wait_for_selector("#src", timeout=25000)
 
-    # Preenchimento exato dos campos de data revelados no PABX
     if page.locator("#calldate_day_start").is_visible():
         page.locator("#calldate_day_start").fill(DATA_CONSULTA)
     if page.locator("#calldate_day_end").is_visible():
@@ -126,7 +124,6 @@ def aplicar_filtros(page, ramal_numero):
 
     page.fill("#src", ramal_numero)
 
-    # Seleciona Tipo: Saínte e Status: Atendida
     for s in page.locator("select").all():
         for opt in s.locator("option").all():
             txt = opt.inner_text().strip().lower()
@@ -194,4 +191,69 @@ def processar_chamadas(page, model_whisper):
                         btn_salvar = tds[9].locator("div img, img[alt*='Salvar'], img[title*='Salvar']").first
 
                         with page.expect_download(timeout=15000) as download_info:
-                            btn_salvar.
+                            btn_salvar.click()
+
+                        download = download_info.value
+                        download.save_as(caminho_gsm)
+
+                        converter_gsm_para_wav(caminho_gsm, caminho_wav)
+
+                        resultado = model_whisper.transcribe(caminho_wav, language="pt")
+                        transcricao = resultado.get("text", "").strip()
+                    except Exception as e:
+                        print(f"Erro ao processar áudio da chamada {idx} (Pág {pag}): {e}")
+                        transcricao = f"Falha no download/transcrição: {str(e)}"
+
+                registros.append({
+                    "Ramal": num,
+                    "Operador": nome,
+                    "Data/Hora": data_hora,
+                    "Duração": duracao,
+                    "Origem": origem,
+                    "Destino": destino,
+                    "Status": status,
+                    "Transcrição": transcricao,
+                    "Arquivo Áudio": f"{arquivo_base}.wav" if os.path.exists(caminho_wav) else "N/A"
+                })
+
+    return registros
+
+
+def gerar_relatorios(registros):
+    df = pd.DataFrame(registros)
+    data_formatada = DATA_CONSULTA.replace("/", "-")
+    csv_path = os.path.join(OUTPUT_DIR, f"relatorio_ligacoes_{data_formatada}.csv")
+    md_path = os.path.join(OUTPUT_DIR, f"relatorio_ligacoes_{data_formatada}.md")
+
+    df.to_csv(csv_path, index=False, encoding="utf-8-sig")
+
+    with open(md_path, "w", encoding="utf-8") as f:
+        f.write(f"# Relatório Consolidado de Ligações PABX - {DATA_CONSULTA}\n\n")
+        f.write(f"Total de chamadas processadas: {len(df)}\n\n")
+        for r in registros:
+            f.write(f"### Atendimento {r['Operador']} (Ramal {r['Ramal']}) - {r['Data/Hora']}\n")
+            f.write(f"- **Destino:** {r['Destino']}\n")
+            f.write(f"- **Duração:** {r['Duração']}\n")
+            f.write(f"- **Status:** {r['Status']}\n")
+            f.write(f"- **Transcrição:**\n> {r['Transcrição']}\n\n---\n")
+
+    print(f"\nRelatórios gerados em:\n- {csv_path}\n- {md_path}")
+
+
+def main():
+    print("Carregando modelo Whisper base...")
+    model_whisper = whisper.load_model("base")
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        page = browser.new_page()
+
+        login_pabx(page)
+        registros = processar_chamadas(page, model_whisper)
+        gerar_relatorios(registros)
+
+        browser.close()
+
+
+if __name__ == "__main__":
+    main()
