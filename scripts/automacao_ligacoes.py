@@ -48,8 +48,8 @@ def converter_gsm_para_wav(gsm_path, wav_path):
 
 def obter_total_paginas(page):
     try:
-        page.wait_for_selector(".pDiv .pcontrol span", timeout=10000)
-        texto = page.locator(".pDiv .pcontrol span").inner_text().strip()
+        page.wait_for_selector(".pDiv .pcontrol span, .pcontrol span", timeout=10000)
+        texto = page.locator(".pDiv .pcontrol span, .pcontrol span").first.inner_text().strip()
         numeros = re.findall(r"\d+", texto)
         return int(numeros[-1]) if numeros else 1
     except Exception:
@@ -58,21 +58,31 @@ def obter_total_paginas(page):
 
 def mudar_pagina_flexigrid(page, proxima_pagina):
     print(f"-> Avançando para a página {proxima_pagina} no Flexigrid...")
-    input_pag = page.locator(".pDiv .pcontrol input")
     
-    if input_pag.is_visible():
-        input_pag.click()
-        input_pag.fill(str(proxima_pagina))
-        input_pag.press("Enter")
-    else:
-        page.locator(".pDiv .pNext").click()
+    primeira_linha = page.locator("tr[id^='tr_']").first
+    id_antigo = primeira_linha.get_attribute("id") if primeira_linha.count() > 0 else None
 
-    page.wait_for_selector(".pDiv .pReload:not(.loading)", timeout=15000)
-    page.wait_for_function(
-        f"() => {{ const el = document.querySelector('.pDiv .pcontrol input'); return el && parseInt(el.value) === {proxima_pagina}; }}",
-        timeout=15000
-    )
-    page.wait_for_timeout(1000)
+    input_pag = page.locator(".pDiv .pcontrol input, .pcontrol input")
+    if input_pag.count() > 0 and input_pag.first.is_visible():
+        input_pag.first.click()
+        input_pag.first.fill(str(proxima_pagina))
+        input_pag.first.press("Enter")
+    else:
+        btn_next = page.locator(".pDiv .pNext, .pNext")
+        if btn_next.count() > 0:
+            btn_next.first.click()
+
+    # Aguarda a atualização das linhas da tabela
+    if id_antigo:
+        try:
+            page.wait_for_function(
+                f"() => {{ const tr = document.querySelector(\"tr[id^='tr_']\"); return tr && tr.id !== '{id_antigo}'; }}",
+                timeout=8000
+            )
+        except Exception:
+            pass
+
+    page.wait_for_timeout(2000)
 
 
 def login_pabx(page):
@@ -137,8 +147,13 @@ def aplicar_filtros(page, ramal_numero):
 
     print("Disparando consulta (#confirm)...")
     page.click("#confirm")
-    page.wait_for_selector(".pDiv .pReload:not(.loading)", timeout=20000)
-    page.wait_for_timeout(2000)
+    page.wait_for_timeout(4000)
+
+    try:
+        page.wait_for_selector("tr[id^='tr_'], .pDiv .pcontrol, .pcontrol", timeout=15000)
+    except Exception:
+        pass
+    page.wait_for_timeout(1000)
 
 
 def processar_chamadas(page, model_whisper):
