@@ -33,6 +33,7 @@ RAMAIS = [
     {"numero": "2005", "nome": "Julia"}
 ]
 
+# Período D-1
 DATA_CONSULTA = (datetime.now() - timedelta(days=1)).strftime("%d/%m/%Y")
 URL_CONTAINER = f"{PBX_URL}/pbxip/framework/container.php?token=MAIN/cmVwb3J0LmNhbGxzLmRldGFpbGVk"
 
@@ -57,7 +58,7 @@ def obter_total_paginas(page):
 
 
 def mudar_pagina_flexigrid(page, proxima_pagina):
-    print(f"-> Avançando para a página {proxima_pagina}...")
+    print(f"-> Avançando para a página {proxima_pagina} no Flexigrid...")
     input_pag = page.locator(".pDiv .pcontrol input")
     
     if input_pag.is_visible():
@@ -72,7 +73,6 @@ def mudar_pagina_flexigrid(page, proxima_pagina):
         f"() => {{ const el = document.querySelector('.pDiv .pcontrol input'); return el && parseInt(el.value) === {proxima_pagina}; }}",
         timeout=15000
     )
-    page.wait_for_selector("tr[id^='tr_']", timeout=15000)
     page.wait_for_timeout(1000)
 
 
@@ -82,12 +82,10 @@ def login_pabx(page):
     page.wait_for_load_state("domcontentloaded")
     page.wait_for_timeout(2000)
 
-    # Procura campos de formulário (incluindo iframes se houver)
     campo_usuario = page.locator("input[type='text'], input[name*='user'], input[name*='login'], #src, #user, #login").first
     campo_senha = page.locator("input[type='password']").first
 
     if not campo_senha.is_visible():
-        # Se não encontrou campo de senha, tenta verificar frames
         for frame in page.frames:
             f_pass = frame.locator("input[type='password']").first
             if f_pass.is_visible():
@@ -112,9 +110,7 @@ def login_pabx(page):
             
         page.wait_for_load_state("networkidle")
         page.wait_for_timeout(2000)
-        print("Login submetido com sucesso.")
-    else:
-        print("Aviso: Campo de senha não encontrado na tela inicial. URL atual:", page.url)
+        print("Login efetuado.")
 
 
 def aplicar_filtros(page, ramal_numero):
@@ -122,23 +118,27 @@ def aplicar_filtros(page, ramal_numero):
     page.goto(URL_CONTAINER, timeout=60000)
     page.wait_for_selector("#src", timeout=25000)
 
-    # Preenche período se houver campos específicos
-    for campo_data in ["#date_start", "#date_end", "input[name*='start']", "input[name*='end']"]:
-        loc = page.locator(campo_data)
-        if loc.count() > 0 and loc.first.is_visible():
-            loc.fill(DATA_CONSULTA)
+    # Preenchimento exato dos campos de data revelados no PABX
+    if page.locator("#calldate_day_start").is_visible():
+        page.locator("#calldate_day_start").fill(DATA_CONSULTA)
+    if page.locator("#calldate_day_end").is_visible():
+        page.locator("#calldate_day_end").fill(DATA_CONSULTA)
 
     page.fill("#src", ramal_numero)
 
-    # Tipo: Saínte / Status: Atendida
-    selects = page.locator("select").all()
-    for s in selects:
-        html = s.inner_html().lower()
-        if "saínte" in html or "sainte" in html:
-            s.select_option(label="Saínte")
-        elif "atendida" in html:
-            s.select_option(label="Atendida")
+    # Seleciona Tipo: Saínte e Status: Atendida
+    for s in page.locator("select").all():
+        for opt in s.locator("option").all():
+            txt = opt.inner_text().strip().lower()
+            val = opt.get_attribute("value")
+            if txt in ["saínte", "sainte", "saída", "saida"]:
+                s.select_option(value=val)
+                break
+            elif txt in ["atendida", "atendidas"]:
+                s.select_option(value=val)
+                break
 
+    print("Disparando consulta (#confirm)...")
     page.click("#confirm")
     page.wait_for_selector(".pDiv .pReload:not(.loading)", timeout=20000)
     page.wait_for_timeout(2000)
@@ -156,12 +156,18 @@ def processar_chamadas(page, model_whisper):
 
         aplicar_filtros(page, num)
         total_paginas = obter_total_paginas(page)
+        print(f"[{nome}] Total de páginas: {total_paginas}")
 
         for pag in range(1, total_paginas + 1):
             if pag > 1:
                 mudar_pagina_flexigrid(page, pag)
 
-            linhas = page.locator("tr[id^='tr_']").all()
+            try:
+                page.wait_for_selector("tr[id^='tr_']", timeout=8000)
+                linhas = page.locator("tr[id^='tr_']").all()
+            except Exception:
+                linhas = []
+
             print(f"Página {pag}/{total_paginas} - {len(linhas)} chamadas encontradas.")
 
             for idx, linha in enumerate(linhas, start=1):
@@ -177,7 +183,7 @@ def processar_chamadas(page, model_whisper):
 
                 icone_audio = tds[9].locator("a > img")
                 transcricao = "Sem gravação"
-                arquivo_base = f"{num}_{nome}_{data_hora.replace('/', '-').replace(':', '-').replace(' ', '_')}_{idx}"
+                arquivo_base = f"{num}_{nome}_{data_hora.replace('/', '-').replace(':', '-').replace(' ', '_')}_{pag}_{idx}"
                 caminho_gsm = os.path.join(AUDIO_DIR, f"{arquivo_base}.gsm")
                 caminho_wav = os.path.join(AUDIO_DIR, f"{arquivo_base}.wav")
 
@@ -185,72 +191,7 @@ def processar_chamadas(page, model_whisper):
                     try:
                         icone_audio.first.click()
                         page.wait_for_timeout(500)
-                        btn_salvar = tds[9].locator("div img, img[alt*='Salvar']").first
+                        btn_salvar = tds[9].locator("div img, img[alt*='Salvar'], img[title*='Salvar']").first
 
                         with page.expect_download(timeout=15000) as download_info:
-                            btn_salvar.click()
-
-                        download = download_info.value
-                        download.save_as(caminho_gsm)
-
-                        converter_gsm_para_wav(caminho_gsm, caminho_wav)
-
-                        resultado = model_whisper.transcribe(caminho_wav, language="pt")
-                        transcricao = resultado.get("text", "").strip()
-                    except Exception as e:
-                        print(f"Erro ao processar áudio da chamada {idx}: {e}")
-                        transcricao = f"Falha no download/transcrição: {str(e)}"
-
-                registros.append({
-                    "Ramal": num,
-                    "Operador": nome,
-                    "Data/Hora": data_hora,
-                    "Duração": duracao,
-                    "Origem": origem,
-                    "Destino": destino,
-                    "Status": status,
-                    "Transcrição": transcricao,
-                    "Arquivo Áudio": f"{arquivo_base}.wav" if os.path.exists(caminho_wav) else "N/A"
-                })
-
-    return registros
-
-
-def gerar_relatorios(registros):
-    df = pd.DataFrame(registros)
-    data_formatada = DATA_CONSULTA.replace("/", "-")
-    csv_path = os.path.join(OUTPUT_DIR, f"relatorio_ligacoes_{data_formatada}.csv")
-    md_path = os.path.join(OUTPUT_DIR, f"relatorio_ligacoes_{data_formatada}.md")
-
-    df.to_csv(csv_path, index=False, encoding="utf-8-sig")
-
-    with open(md_path, "w", encoding="utf-8") as f:
-        f.write(f"# Relatório Consolidado de Ligações PABX - {DATA_CONSULTA}\n\n")
-        f.write(f"Total de chamadas processadas: {len(df)}\n\n")
-        for r in registros:
-            f.write(f"### Atendimento {r['Operador']} (Ramal {r['Ramal']}) - {r['Data/Hora']}\n")
-            f.write(f"- **Destino:** {r['Destino']}\n")
-            f.write(f"- **Duração:** {r['Duração']}\n")
-            f.write(f"- **Status:** {r['Status']}\n")
-            f.write(f"- **Transcrição:**\n> {r['Transcrição']}\n\n---\n")
-
-    print(f"\nRelatórios gerados em:\n- {csv_path}\n- {md_path}")
-
-
-def main():
-    print("Carregando modelo Whisper base...")
-    model_whisper = whisper.load_model("base")
-
-    with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
-        page = browser.new_page()
-
-        login_pabx(page)
-        registros = processar_chamadas(page, model_whisper)
-        gerar_relatorios(registros)
-
-        browser.close()
-
-
-if __name__ == "__main__":
-    main()
+                            btn_salvar.
