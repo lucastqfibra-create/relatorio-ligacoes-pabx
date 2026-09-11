@@ -9,16 +9,11 @@ import whisper
 
 
 def limpar_url(raw_url):
-    """Higieniza a URL vinda das variáveis de ambiente."""
     if not raw_url:
         return "http://177.10.116.84"
     url = raw_url.strip()
-    
-    # Se foi colado como markdown [label](url)
     if "](" in url:
         url = url.split("](")[-1].rstrip(")")
-        
-    # Extrai url válida com regex caso tenha caracteres extras
     m = re.search(r"https?://[^\s\)\"\'\[\]<>]+", url)
     if m:
         url = m.group(0)
@@ -26,11 +21,9 @@ def limpar_url(raw_url):
         url = url.strip("\"'<>[]() ")
         if not url.startswith("http://") and not url.startswith("https://"):
             url = f"http://{url}"
-            
     return url.rstrip("/")
 
 
-# Configurações de ambiente
 PBX_URL = limpar_url(os.getenv("PBX_URL", "http://177.10.116.84/"))
 PBX_USER = os.getenv("PBX_USER", "lucas").strip().strip("\"'")
 PBX_PASSWORD = os.getenv("PBX_PASSWORD", "lcsu251535").strip().strip("\"'")
@@ -84,34 +77,52 @@ def mudar_pagina_flexigrid(page, proxima_pagina):
 
 
 def login_pabx(page):
-    print(f"Navegando para o PABX: {PBX_URL}")
+    print(f"Navegando para a página de login: {PBX_URL}")
     page.goto(PBX_URL, timeout=60000)
     page.wait_for_load_state("domcontentloaded")
+    page.wait_for_timeout(2000)
 
-    # Localiza campos de login com fallback de seletores
-    campo_usuario = page.locator("input[name='login'], input[name='user'], input[name='usuario'], input[name='username'], #login, #user").first
-    campo_senha = page.locator("input[name='password'], input[name='senha'], input[type='password']").first
+    # Procura campos de formulário (incluindo iframes se houver)
+    campo_usuario = page.locator("input[type='text'], input[name*='user'], input[name*='login'], #src, #user, #login").first
+    campo_senha = page.locator("input[type='password']").first
 
-    if campo_usuario.is_visible(timeout=5000):
+    if not campo_senha.is_visible():
+        # Se não encontrou campo de senha, tenta verificar frames
+        for frame in page.frames:
+            f_pass = frame.locator("input[type='password']").first
+            if f_pass.is_visible():
+                f_user = frame.locator("input[type='text']").first
+                print(f"Formulário de login localizado dentro do frame: {frame.name or frame.url}")
+                f_user.fill(PBX_USER)
+                f_pass.fill(PBX_PASSWORD)
+                f_pass.press("Enter")
+                page.wait_for_timeout(3000)
+                return
+
+    if campo_senha.is_visible():
         print("Preenchendo credenciais de acesso...")
         campo_usuario.fill(PBX_USER)
         campo_senha.fill(PBX_PASSWORD)
-
-        btn_submit = page.locator("button[type='submit'], input[type='submit'], #submit, #entrar, .btn-primary").first
+        
+        btn_submit = page.locator("button[type='submit'], input[type='submit'], #submit, .btn-primary").first
         if btn_submit.is_visible():
             btn_submit.click()
         else:
             campo_senha.press("Enter")
-
+            
         page.wait_for_load_state("networkidle")
-        print("Login efetuado.")
+        page.wait_for_timeout(2000)
+        print("Login submetido com sucesso.")
+    else:
+        print("Aviso: Campo de senha não encontrado na tela inicial. URL atual:", page.url)
 
 
 def aplicar_filtros(page, ramal_numero):
+    print(f"Acessando módulo de registros: {URL_CONTAINER}")
     page.goto(URL_CONTAINER, timeout=60000)
-    page.wait_for_selector("#src", timeout=20000)
+    page.wait_for_selector("#src", timeout=25000)
 
-    # Preenche período D-1
+    # Preenche período se houver campos específicos
     for campo_data in ["#date_start", "#date_end", "input[name*='start']", "input[name*='end']"]:
         loc = page.locator(campo_data)
         if loc.count() > 0 and loc.first.is_visible():
