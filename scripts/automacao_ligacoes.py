@@ -7,10 +7,33 @@ import pandas as pd
 from playwright.sync_api import sync_playwright
 import whisper
 
+
+def limpar_url(raw_url):
+    """Higieniza a URL vinda das variáveis de ambiente."""
+    if not raw_url:
+        return "http://177.10.116.84"
+    url = raw_url.strip()
+    
+    # Se foi colado como markdown [label](url)
+    if "](" in url:
+        url = url.split("](")[-1].rstrip(")")
+        
+    # Extrai url válida com regex caso tenha caracteres extras
+    m = re.search(r"https?://[^\s\)\"\'\[\]<>]+", url)
+    if m:
+        url = m.group(0)
+    else:
+        url = url.strip("\"'<>[]() ")
+        if not url.startswith("http://") and not url.startswith("https://"):
+            url = f"http://{url}"
+            
+    return url.rstrip("/")
+
+
 # Configurações de ambiente
-PBX_URL = os.getenv("PBX_URL", "http://177.10.116.84/").rstrip("/")
-PBX_USER = os.getenv("PBX_USER", "lucas")
-PBX_PASSWORD = os.getenv("PBX_PASSWORD", "lcsu251535")
+PBX_URL = limpar_url(os.getenv("PBX_URL", "http://177.10.116.84/"))
+PBX_USER = os.getenv("PBX_USER", "lucas").strip().strip("\"'")
+PBX_PASSWORD = os.getenv("PBX_PASSWORD", "lcsu251535").strip().strip("\"'")
 
 RAMAIS = [
     {"numero": "2003", "nome": "Fernanda"},
@@ -41,7 +64,9 @@ def obter_total_paginas(page):
 
 
 def mudar_pagina_flexigrid(page, proxima_pagina):
+    print(f"-> Avançando para a página {proxima_pagina}...")
     input_pag = page.locator(".pDiv .pcontrol input")
+    
     if input_pag.is_visible():
         input_pag.click()
         input_pag.fill(str(proxima_pagina))
@@ -59,26 +84,42 @@ def mudar_pagina_flexigrid(page, proxima_pagina):
 
 
 def login_pabx(page):
+    print(f"Navegando para o PABX: {PBX_URL}")
     page.goto(PBX_URL, timeout=60000)
-    if page.locator("input[name='login']").is_visible():
-        page.fill("input[name='login']", PBX_USER)
-        page.fill("input[name='password']", PBX_PASSWORD)
-        page.click("button[type='submit'], input[type='submit']")
+    page.wait_for_load_state("domcontentloaded")
+
+    # Localiza campos de login com fallback de seletores
+    campo_usuario = page.locator("input[name='login'], input[name='user'], input[name='usuario'], input[name='username'], #login, #user").first
+    campo_senha = page.locator("input[name='password'], input[name='senha'], input[type='password']").first
+
+    if campo_usuario.is_visible(timeout=5000):
+        print("Preenchendo credenciais de acesso...")
+        campo_usuario.fill(PBX_USER)
+        campo_senha.fill(PBX_PASSWORD)
+
+        btn_submit = page.locator("button[type='submit'], input[type='submit'], #submit, #entrar, .btn-primary").first
+        if btn_submit.is_visible():
+            btn_submit.click()
+        else:
+            campo_senha.press("Enter")
+
         page.wait_for_load_state("networkidle")
+        print("Login efetuado.")
 
 
 def aplicar_filtros(page, ramal_numero):
     page.goto(URL_CONTAINER, timeout=60000)
     page.wait_for_selector("#src", timeout=20000)
 
-    # Preenche período se houver campos específicos ou assume D-1
+    # Preenche período D-1
     for campo_data in ["#date_start", "#date_end", "input[name*='start']", "input[name*='end']"]:
-        if page.locator(campo_data).is_visible():
-            page.fill(campo_data, DATA_CONSULTA)
+        loc = page.locator(campo_data)
+        if loc.count() > 0 and loc.first.is_visible():
+            loc.fill(DATA_CONSULTA)
 
     page.fill("#src", ramal_numero)
 
-    # Tipo: Saínte
+    # Tipo: Saínte / Status: Atendida
     selects = page.locator("select").all()
     for s in selects:
         html = s.inner_html().lower()
@@ -143,7 +184,6 @@ def processar_chamadas(page, model_whisper):
 
                         converter_gsm_para_wav(caminho_gsm, caminho_wav)
 
-                        # Transcrição via Whisper
                         resultado = model_whisper.transcribe(caminho_wav, language="pt")
                         transcricao = resultado.get("text", "").strip()
                     except Exception as e:
@@ -167,8 +207,9 @@ def processar_chamadas(page, model_whisper):
 
 def gerar_relatorios(registros):
     df = pd.DataFrame(registros)
-    csv_path = os.path.join(OUTPUT_DIR, f"relatorio_ligacoes_{DATA_CONSULTA.replace('/', '-')}.csv")
-    md_path = os.path.join(OUTPUT_DIR, f"relatorio_ligacoes_{DATA_CONSULTA.replace('/', '-')}.md")
+    data_formatada = DATA_CONSULTA.replace("/", "-")
+    csv_path = os.path.join(OUTPUT_DIR, f"relatorio_ligacoes_{data_formatada}.csv")
+    md_path = os.path.join(OUTPUT_DIR, f"relatorio_ligacoes_{data_formatada}.md")
 
     df.to_csv(csv_path, index=False, encoding="utf-8-sig")
 
