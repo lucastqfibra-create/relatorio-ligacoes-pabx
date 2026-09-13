@@ -35,7 +35,9 @@ RAMAIS = [
 ]
 
 DATA_CONSULTA = (datetime.now() - timedelta(days=1)).strftime("%d/%m/%Y")
-URL_CONTAINER = f"{PBX_URL}/pbxip/framework/container.php?token=MAIN/cmVwb3J0LmNhbGxyZWNvcmRldGFpbFg="
+
+# Token correto: report.calls.detailed
+URL_CONTAINER = f"{PBX_URL}/pbxip/framework/container.php?token=MAIN/cmVwb3J0LmNhbGxzLmRldGFpbGVk"
 
 OUTPUT_DIR = "ligacoes"
 AUDIO_DIR = os.path.join(OUTPUT_DIR, "audios")
@@ -49,13 +51,45 @@ def converter_gsm_para_wav(gsm_path, wav_path):
   )
 
 
-def obter_info_paginacao(page):
-  """Inspeciona a paginação do Flexigrid no DOM de múltiplas formas para obter
+def obter_contexto_registros(page, timeout=30000):
+  """Localiza em qual contexto (página raiz ou iframe) o formulário #src está renderizado."""
+  start = time.time()
+  while time.time() - start < (timeout / 1000):
+    try:
+      if page.locator("#src").count() > 0 and page.locator("#src").is_visible():
+        return page
+    except Exception:
+      pass
 
-  a página atual e o total real de páginas.
-  """
+    for frame in page.frames:
+      try:
+        if (
+            frame.locator("#src").count() > 0
+            and frame.locator("#src").is_visible()
+        ):
+          print(f"Módulo de registros localizado dentro do frame: {frame.name}")
+          return frame
+      except Exception:
+        pass
+
+    page.wait_for_timeout(1000)
+
+  screenshot_path = os.path.join(OUTPUT_DIR, "erro_timeout_src.png")
   try:
-    dados = page.evaluate("""() => {
+    page.screenshot(path=screenshot_path)
+    print(f"Screenshot salvo em: {screenshot_path}")
+  except Exception:
+    pass
+
+  print(f"[ERRO] URL atual: {page.url}")
+  raise TimeoutError(
+      f"Campo #src não foi encontrado após {timeout}ms na URL {page.url}."
+  )
+
+
+def obter_info_paginacao(ctx):
+  try:
+    dados = ctx.evaluate("""() => {
             const pcontrol = document.querySelector('.pDiv .pcontrol, .pcontrol');
             const pagestat = document.querySelector('.pDiv .pPageStat, .pPageStat');
             const pcontrolSpan = document.querySelector('.pDiv .pcontrol span, .pcontrol span');
@@ -78,18 +112,15 @@ def obter_info_paginacao(page):
     )
     total_paginas = 1
 
-    # 1. Tenta extrair do span interno de pcontrol
     span_txt = dados.get("pcontrol_span", "")
     if span_txt.isdigit() and int(span_txt) > 1:
       total_paginas = int(span_txt)
 
-    # 2. Se não achou, analisa o texto completo do pcontrol (ex: "Página 1 de 4")
     if total_paginas == 1:
       nums_pcontrol = re.findall(r"\d+", dados.get("pcontrol_text", ""))
       if len(nums_pcontrol) >= 2:
         total_paginas = int(nums_pcontrol[-1])
 
-    # 3. Se ainda não achou, analisa o pPageStat (ex: "Exibindo de 1 a 15 de 43 registros")
     if total_paginas == 1:
       nums_stat = re.findall(r"\d+", dados.get("pagestat_text", ""))
       if len(nums_stat) >= 3:
@@ -99,8 +130,8 @@ def obter_info_paginacao(page):
           total_paginas = math.ceil(total_reg / por_pag)
 
     print(
-        f"[PAGINAÇÃO DETECTADA] Página Atual: {pagina_atual} | Total Páginas:"
-        f" {total_paginas} | Detalhes DOM: {dados}"
+        f"[PAGINAÇÃO] Página Atual: {pagina_atual} | Total Páginas:"
+        f" {total_paginas}"
     )
     return {"pagina_atual": pagina_atual, "total_paginas": total_paginas}
   except Exception as e:
@@ -108,42 +139,33 @@ def obter_info_paginacao(page):
     return {"pagina_atual": 1, "total_paginas": 1}
 
 
-def avancar_proxima_pagina_flexigrid(page, pagina_atual):
-  """Avança a paginação do Flexigrid sobrescrevendo o estado interno do componente
-
-  (this.p.newp) e acionando o método populate() diretamente, com fallbacks de UI
-  e sincronização rigorosa do carregamento assíncrono.
-  """
+def avancar_proxima_pagina_flexigrid(ctx, pagina_atual):
   proxima = pagina_atual + 1
   print(
       f"-> Acionando transição da página {pagina_atual} para a página"
       f" {proxima}..."
   )
 
-  primeira_linha = page.locator("tr[id^='tr_']").first
+  primeira_linha = ctx.locator("tr[id^='tr_']").first
   id_anterior = (
       primeira_linha.get_attribute("id") if primeira_linha.count() > 0 else ""
   )
 
-  # 1. Disparo direto via API do Flexigrid no contexto da página
-  sucesso_js = page.evaluate(
+  sucesso_js = ctx.evaluate(
       """(targetPage) => {
         let disparou = false;
-        
-        // Localiza tabelas que possuem a instância do Flexigrid anexada
         const tabelas = window.jQuery ? window.jQuery('table') : [];
         if (tabelas.length) {
             tabelas.each(function() {
                 if (this.grid && this.p) {
-                    this.grid.loading = false; // Destrava eventual flag pendente
-                    this.p.newp = targetPage;  // Define a nova página alvo
-                    this.grid.populate();      // Dispara a requisição AJAX
+                    this.grid.loading = false;
+                    this.p.newp = targetPage;
+                    this.grid.populate();
                     disparou = true;
                 }
             });
         }
         
-        // Fallback: se não encontrou this.grid, preenche o input e envia evento Enter
         if (!disparou) {
             const input = document.querySelector('.pDiv .pcontrol input, .pcontrol input');
             if (input) {
@@ -158,15 +180,13 @@ def avancar_proxima_pagina_flexigrid(page, pagina_atual):
                 disparou = true;
             }
         }
-        
         return disparou;
     }""",
       proxima,
   )
 
-  # 2. Se o JavaScript não conseguiu acionar, tenta via Playwright no input
   if not sucesso_js:
-    input_pag = page.locator(".pDiv .pcontrol input, .pcontrol input").first
+    input_pag = ctx.locator(".pDiv .pcontrol input, .pcontrol input").first
     if input_pag.is_visible():
       try:
         input_pag.fill(str(proxima))
@@ -174,9 +194,8 @@ def avancar_proxima_pagina_flexigrid(page, pagina_atual):
       except Exception as e:
         print(f"Tentativa via input Playwright falhou: {e}")
 
-  # 3. Aguarda a confirmação de que o DOM atualizou
   try:
-    page.wait_for_function(
+    ctx.wait_for_function(
         """({ targetPage, oldRowId }) => {
             const inp = document.querySelector('.pDiv .pcontrol input, .pcontrol input');
             const tr = document.querySelector("tr[id^='tr_']");
@@ -191,8 +210,8 @@ def avancar_proxima_pagina_flexigrid(page, pagina_atual):
         {"targetPage": proxima, "oldRowId": id_anterior},
         timeout=15000,
     )
-    print(f"-> Sucesso: Página {proxima} confirmada e carregada no DOM.")
-    page.wait_for_timeout(1000)
+    print(f"-> Sucesso: Página {proxima} confirmada no DOM.")
+    ctx.wait_for_timeout(1000)
     return True
   except Exception as e:
     print(
@@ -208,58 +227,70 @@ def login_pabx(page):
   page.wait_for_load_state("domcontentloaded")
   page.wait_for_timeout(2000)
 
-  campo_usuario = page.locator(
-      "input[type='text'], input[name='user'], input[name='login'], #src,"
-      " #user, #login"
-  ).first
-  campo_senha = page.locator("input[type='password']").first
+  campo_usuario = None
+  campo_senha = None
+  ctx_login = page
 
-  if not campo_senha.is_visible():
-    for frame in page.frames:
-      f_pass = frame.locator("input[type='password']").first
-      if f_pass.is_visible():
-        f_user = frame.locator("input[type='text']").first
-        print(
-            "Formulário de login localizado dentro do frame:"
-            f" {frame.name or frame.url}"
-        )
-        f_user.fill(PBX_USER)
-        f_pass.fill(PBX_PASSWORD)
-        f_pass.press("Enter")
-        page.wait_for_timeout(3000)
-        return
-
-  if campo_senha.is_visible():
-    print("Preenchendo credenciais de acesso...")
-    campo_usuario.fill(PBX_USER)
-    campo_senha.fill(PBX_PASSWORD)
-
-    btn_submit = page.locator(
-        "button[type='submit'], input[type='submit'], #submit, .btn-primary"
+  if page.locator("input[type='password']").count() > 0:
+    campo_senha = page.locator("input[type='password']").first
+    campo_usuario = page.locator(
+        "input[type='text'], input[name='user'], input[name='login'], #src,"
+        " #user, #login"
     ).first
-    if btn_submit.is_visible():
-      btn_submit.click()
-    else:
-      campo_senha.press("Enter")
+  else:
+    for frame in page.frames:
+      if frame.locator("input[type='password']").count() > 0:
+        campo_senha = frame.locator("input[type='password']").first
+        campo_usuario = frame.locator(
+            "input[type='text'], input[name='user'], input[name='login'], #src,"
+            " #user, #login"
+        ).first
+        ctx_login = frame
+        print(f"Formulário de login localizado dentro do frame: {frame.name}")
+        break
 
-    page.wait_for_load_state("networkidle")
-    page.wait_for_timeout(2000)
-    print("Login efetuado.")
+  if not campo_senha:
+    print("Aviso: Campo de senha não localizado.")
+    return
+
+  print("Preenchendo credenciais de acesso...")
+  campo_usuario.fill(PBX_USER)
+  campo_senha.fill(PBX_PASSWORD)
+
+  btn_submit = ctx_login.locator(
+      "button[type='submit'], input[type='submit'], #submit, .btn-primary"
+  ).first
+  if btn_submit.count() > 0 and btn_submit.is_visible():
+    btn_submit.click()
+  else:
+    campo_senha.press("Enter")
+
+  try:
+    campo_senha.wait_for(state="hidden", timeout=15000)
+  except Exception:
+    pass
+
+  page.wait_for_load_state("networkidle")
+  page.wait_for_timeout(2000)
+  print("Login efetuado.")
 
 
 def aplicar_filtros(page, ramal_numero):
   print(f"Acessando módulo de registros: {URL_CONTAINER}")
   page.goto(URL_CONTAINER, timeout=60000)
-  page.wait_for_selector("#src", timeout=25000)
+  page.wait_for_load_state("domcontentloaded")
+  page.wait_for_timeout(2000)
 
-  if page.locator("#calldate_day_start").is_visible():
-    page.locator("#calldate_day_start").fill(DATA_CONSULTA)
-  if page.locator("#calldate_day_end").is_visible():
-    page.locator("#calldate_day_end").fill(DATA_CONSULTA)
+  ctx = obter_contexto_registros(page)
 
-  page.fill("#src", ramal_numero)
+  if ctx.locator("#calldate_day_start").is_visible():
+    ctx.locator("#calldate_day_start").fill(DATA_CONSULTA)
+  if ctx.locator("#calldate_day_end").is_visible():
+    ctx.locator("#calldate_day_end").fill(DATA_CONSULTA)
 
-  for s in page.locator("select").all():
+  ctx.fill("#src", ramal_numero)
+
+  for s in ctx.locator("select").all():
     for opt in s.locator("option").all():
       txt = opt.inner_text().strip().lower()
       val = opt.get_attribute("value")
@@ -271,16 +302,17 @@ def aplicar_filtros(page, ramal_numero):
         break
 
   print("Disparando consulta (#confirm)...")
-  page.click("#confirm")
+  ctx.click("#confirm")
   page.wait_for_timeout(4000)
 
   try:
-    page.wait_for_selector(
+    ctx.wait_for_selector(
         "tr[id^='tr_'], .pDiv .pcontrol, .pcontrol", timeout=15000
     )
   except Exception:
     pass
   page.wait_for_timeout(1000)
+  return ctx
 
 
 def processar_chamadas(page, model_whisper):
@@ -293,16 +325,16 @@ def processar_chamadas(page, model_whisper):
     print(f"Consultando Ramal {num} ({nome}) para o dia {DATA_CONSULTA}")
     print(f"==========================================")
 
-    aplicar_filtros(page, num)
+    ctx = aplicar_filtros(page, num)
 
     pagina_atual = 1
     while True:
-      info_pag = obter_info_paginacao(page)
+      info_pag = obter_info_paginacao(ctx)
       total_paginas = info_pag["total_paginas"]
 
       try:
-        page.wait_for_selector("tr[id^='tr_']", timeout=8000)
-        linhas = page.locator("tr[id^='tr_']").all()
+        ctx.wait_for_selector("tr[id^='tr_']", timeout=8000)
+        linhas = ctx.locator("tr[id^='tr_']").all()
       except Exception:
         linhas = []
 
@@ -334,7 +366,7 @@ def processar_chamadas(page, model_whisper):
         if icone_audio.count() > 0:
           try:
             icone_audio.first.click()
-            page.wait_for_timeout(500)
+            ctx.wait_for_timeout(500)
             btn_salvar = tds[9].locator(
                 "div img, img[alt*='Salvar'], img[title*='Salvar']"
             ).first
@@ -370,7 +402,6 @@ def processar_chamadas(page, model_whisper):
             ),
         })
 
-      # Se chegamos ou ultrapassamos o total confirmado de páginas
       if total_paginas > 1 and pagina_atual >= total_paginas:
         print(
             f"[{nome}] Concluído: todas as {total_paginas} páginas foram"
@@ -378,8 +409,7 @@ def processar_chamadas(page, model_whisper):
         )
         break
 
-      # Avança para a próxima página
-      avancou = avancar_proxima_pagina_flexigrid(page, pagina_atual)
+      avancou = avancar_proxima_pagina_flexigrid(ctx, pagina_atual)
       if not avancou:
         print(f"[{nome}] Fim da paginação após página {pagina_atual}.")
         break
