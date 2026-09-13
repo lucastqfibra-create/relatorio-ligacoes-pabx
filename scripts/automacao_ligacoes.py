@@ -34,9 +34,18 @@ RAMAIS = [
     {"numero": "2005", "nome": "Julia"},
 ]
 
-DATA_CONSULTA = (datetime.now() - timedelta(days=1)).strftime("%d/%m/%Y")
 
-# Token correto: report.calls.detailed
+def obter_ultimo_dia_util():
+  """Retorna a data do último dia útil no formato DD/MM/YYYY."""
+  data = datetime.now() - timedelta(days=1)
+  while data.weekday() in (5, 6):  # 5 = Sábado, 6 = Domingo
+    data -= timedelta(days=1)
+  return data.strftime("%d/%m/%Y")
+
+
+DATA_CONSULTA = obter_ultimo_dia_util()
+
+# Token correto do módulo: report.calls.detailed
 URL_CONTAINER = f"{PBX_URL}/pbxip/framework/container.php?token=MAIN/cmVwb3J0LmNhbGxzLmRldGFpbGVk"
 
 OUTPUT_DIR = "ligacoes"
@@ -52,7 +61,6 @@ def converter_gsm_para_wav(gsm_path, wav_path):
 
 
 def obter_contexto_registros(page, timeout=30000):
-  """Localiza em qual contexto (página raiz ou iframe) o formulário #src está renderizado."""
   start = time.time()
   while time.time() - start < (timeout / 1000):
     try:
@@ -67,7 +75,7 @@ def obter_contexto_registros(page, timeout=30000):
             frame.locator("#src").count() > 0
             and frame.locator("#src").is_visible()
         ):
-          print(f"Módulo de registros localizado dentro do frame: {frame.name}")
+          print(f"Módulo de registros localizado no frame: {frame.name}")
           return frame
       except Exception:
         pass
