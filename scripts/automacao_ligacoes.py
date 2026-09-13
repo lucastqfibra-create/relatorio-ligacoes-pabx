@@ -1,5 +1,6 @@
 import os
 import re
+import math
 import subprocess
 import time
 from datetime import datetime, timedelta
@@ -46,43 +47,109 @@ def converter_gsm_para_wav(gsm_path, wav_path):
     subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
 
 
-def obter_total_paginas(page):
+def obter_info_paginacao(page):
+    """
+    Inspeciona a paginação do Flexigrid no DOM de múltiplas formas para obter
+    a página atual e o total real de páginas.
+    """
     try:
-        page.wait_for_selector(".pDiv .pcontrol span, .pcontrol span", timeout=10000)
-        texto = page.locator(".pDiv .pcontrol span, .pcontrol span").first.inner_text().strip()
-        numeros = re.findall(r"\d+", texto)
-        return int(numeros[-1]) if numeros else 1
-    except Exception:
-        return 1
+        dados = page.evaluate("""() => {
+            const pcontrol = document.querySelector('.pDiv .pcontrol, .pcontrol');
+            const pagestat = document.querySelector('.pDiv .pPageStat, .pPageStat');
+            const pcontrolSpan = document.querySelector('.pDiv .pcontrol span, .pcontrol span');
+            const pcontrolInput = document.querySelector('.pDiv .pcontrol input, .pcontrol input');
+            const selectRp = document.querySelector('.pDiv select[name="rp"], select[name="rp"]');
+
+            return {
+                pcontrol_text: pcontrol ? pcontrol.innerText.trim() : '',
+                pcontrol_span: pcontrolSpan ? pcontrolSpan.innerText.trim() : '',
+                pagestat_text: pagestat ? pagestat.innerText.trim() : '',
+                input_val: pcontrolInput ? pcontrolInput.value.trim() : '1',
+                rp_val: selectRp ? selectRp.value.trim() : '15'
+            };
+        }""")
+
+        pagina_atual = int(dados.get("input_val", "1")) if dados.get("input_val", "").isdigit() else 1
+        total_paginas = 1
+
+        # 1. Tenta extrair do span interno de pcontrol
+        span_txt = dados.get("pcontrol_span", "")
+        if span_txt.isdigit() and int(span_txt) > 1:
+            total_paginas = int(span_txt)
+
+        # 2. Se não achou, analisa o texto completo do pcontrol (ex: "Página 1 de 4")
+        if total_paginas == 1:
+            nums_pcontrol = re.findall(r"\d+", dados.get("pcontrol_text", ""))
+            if len(nums_pcontrol) >= 2:
+                total_paginas = int(nums_pcontrol[-1])
+
+        # 3. Se ainda não achou, analisa o pPageStat (ex: "Exibindo de 1 a 15 de 43 registros")
+        if total_paginas == 1:
+            nums_stat = re.findall(r"\d+", dados.get("pagestat_text", ""))
+            if len(nums_stat) >= 3:
+                por_pag = int(nums_stat[1]) - int(nums_stat[0]) + 1
+                total_reg = int(nums_stat[-1])
+                if por_pag > 0 and total_reg > 0:
+                    total_paginas = math.ceil(total_reg / por_pag)
+
+        print(f"[PAGINAÇÃO DETECTADA] Página Atual: {pagina_atual} | Total Páginas: {total_paginas} | Detalhes DOM: {dados}")
+        return {"pagina_atual": pagina_atual, "total_paginas": total_paginas}
+    except Exception as e:
+        print(f"Aviso ao ler paginação: {e}")
+        return {"pagina_atual": 1, "total_paginas": 1}
 
 
-def mudar_pagina_flexigrid(page, proxima_pagina):
-    print(f"-> Avançando para a página {proxima_pagina} no Flexigrid...")
-    
+def avancar_proxima_pagina_flexigrid(page, pagina_atual):
+    """
+    Dispara o clique no botão .pNext do Flexigrid e aguarda a substituição
+    das linhas e a atualização da página no DOM.
+    """
+    proxima = pagina_atual + 1
+    print(f"-> Acionando gatilho para avançar da página {pagina_atual} para a página {proxima}...")
+
     primeira_linha = page.locator("tr[id^='tr_']").first
-    id_antigo = primeira_linha.get_attribute("id") if primeira_linha.count() > 0 else None
+    id_anterior = primeira_linha.get_attribute("id") if primeira_linha.count() > 0 else None
 
-    input_pag = page.locator(".pDiv .pcontrol input, .pcontrol input")
-    if input_pag.count() > 0 and input_pag.first.is_visible():
-        input_pag.first.click()
-        input_pag.first.fill(str(proxima_pagina))
-        input_pag.first.press("Enter")
-    else:
-        btn_next = page.locator(".pDiv .pNext, .pNext")
-        if btn_next.count() > 0:
-            btn_next.first.click()
-
-    # Aguarda a atualização das linhas da tabela
-    if id_antigo:
+    # Gatilho 1: Clique Playwright no botão .pNext
+    btn_next = page.locator(".pDiv .pNext, .pNext, div.pButton.pNext").first
+    clicou = False
+    if btn_next.count() > 0 and btn_next.is_visible():
         try:
-            page.wait_for_function(
-                f"() => {{ const tr = document.querySelector(\"tr[id^='tr_']\"); return tr && tr.id !== '{id_antigo}'; }}",
-                timeout=8000
-            )
-        except Exception:
-            pass
+            btn_next.click()
+            clicou = True
+        except Exception as e:
+            print(f"Clique Playwright no .pNext falhou: {e}")
 
-    page.wait_for_timeout(2000)
+    # Gatilho 2: Fallback direto via jQuery do Flexigrid
+    if not clicou:
+        print("Disparando clique via jQuery no .pNext...")
+        page.evaluate("""() => {
+            if (window.jQuery && window.jQuery('.pDiv .pNext, .pNext').length) {
+                window.jQuery('.pDiv .pNext, .pNext').click();
+            } else {
+                const el = document.querySelector('.pDiv .pNext, .pNext');
+                if (el) el.click();
+            }
+        }""")
+
+    # Aguarda o DOM atualizar: input com a nova página OU troca do ID da primeira linha
+    try:
+        page.wait_for_function(
+            f"""() => {{
+                const inp = document.querySelector('.pDiv .pcontrol input, .pcontrol input');
+                const tr = document.querySelector("tr[id^='tr_']");
+                const mudouInput = inp && parseInt(inp.value) === {proxima};
+                const mudouLinha = '{id_anterior}' ? (tr && tr.id !== '{id_anterior}') : false;
+                return mudouInput || mudouLinha;
+            }}""",
+            timeout=10000
+        )
+        print(f"-> Sucesso: Página {proxima} confirmada no DOM.")
+        page.wait_for_timeout(1500)
+        return True
+    except Exception:
+        print(f"Aviso: Não houve confirmação de avanço para a página {proxima}.")
+        return False
 
 
 def login_pabx(page):
@@ -167,12 +234,11 @@ def processar_chamadas(page, model_whisper):
         print(f"==========================================")
 
         aplicar_filtros(page, num)
-        total_paginas = obter_total_paginas(page)
-        print(f"[{nome}] Total de páginas: {total_paginas}")
 
-        for pag in range(1, total_paginas + 1):
-            if pag > 1:
-                mudar_pagina_flexigrid(page, pag)
+        pagina_atual = 1
+        while True:
+            info_pag = obter_info_paginacao(page)
+            total_paginas = info_pag["total_paginas"]
 
             try:
                 page.wait_for_selector("tr[id^='tr_']", timeout=8000)
@@ -180,7 +246,7 @@ def processar_chamadas(page, model_whisper):
             except Exception:
                 linhas = []
 
-            print(f"Página {pag}/{total_paginas} - {len(linhas)} chamadas encontradas.")
+            print(f"\n--- [{nome}] Processando Página {pagina_atual} de {total_paginas} ({len(linhas)} chamadas) ---")
 
             for idx, linha in enumerate(linhas, start=1):
                 tds = linha.locator("td").all()
@@ -195,7 +261,7 @@ def processar_chamadas(page, model_whisper):
 
                 icone_audio = tds[9].locator("a > img")
                 transcricao = "Sem gravação"
-                arquivo_base = f"{num}_{nome}_{data_hora.replace('/', '-').replace(':', '-').replace(' ', '_')}_{pag}_{idx}"
+                arquivo_base = f"{num}_{nome}_{data_hora.replace('/', '-').replace(':', '-').replace(' ', '_')}_p{pagina_atual}_{idx}"
                 caminho_gsm = os.path.join(AUDIO_DIR, f"{arquivo_base}.gsm")
                 caminho_wav = os.path.join(AUDIO_DIR, f"{arquivo_base}.wav")
 
@@ -216,7 +282,7 @@ def processar_chamadas(page, model_whisper):
                         resultado = model_whisper.transcribe(caminho_wav, language="pt")
                         transcricao = resultado.get("text", "").strip()
                     except Exception as e:
-                        print(f"Erro ao processar áudio da chamada {idx} (Pág {pag}): {e}")
+                        print(f"Erro ao processar áudio da chamada {idx} (Pág {pagina_atual}): {e}")
                         transcricao = f"Falha no download/transcrição: {str(e)}"
 
                 registros.append({
@@ -230,6 +296,19 @@ def processar_chamadas(page, model_whisper):
                     "Transcrição": transcricao,
                     "Arquivo Áudio": f"{arquivo_base}.wav" if os.path.exists(caminho_wav) else "N/A"
                 })
+
+            # Critério de parada: se o total de páginas foi confirmado e chegamos ao fim
+            if total_paginas > 1 and pagina_atual >= total_paginas:
+                print(f"[{nome}] Concluído: todas as {total_paginas} páginas foram processadas.")
+                break
+
+            # Tenta avançar para a próxima página pelo gatilho .pNext
+            avancou = avancar_proxima_pagina_flexigrid(page, pagina_atual)
+            if not avancou:
+                print(f"[{nome}] Fim da paginação após página {pagina_atual}.")
+                break
+
+            pagina_atual += 1
 
     return registros
 
