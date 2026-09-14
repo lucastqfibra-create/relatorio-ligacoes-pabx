@@ -42,7 +42,7 @@ def definir_data_consulta():
     return data_env
 
   data = datetime.now() - timedelta(days=1)
-  while data.weekday() in (5, 6):  # Retrocede fim de semana para sexta-feira
+  while data.weekday() in (5, 6):
     data -= timedelta(days=1)
   data_calculada = data.strftime("%d/%m/%Y")
   print(f"[CONFIG] Data da consulta (último dia útil): {data_calculada}")
@@ -97,7 +97,6 @@ def obter_contexto_registros(page, timeout=30000):
 
 
 def obter_info_paginacao(ctx):
-  """Detecta a página atual e total de páginas a partir do texto 'X / Y' do PABX."""
   try:
     dados = ctx.evaluate("""() => {
             let pagAtual = 1;
@@ -107,7 +106,7 @@ def obter_info_paginacao(ctx):
             const elementos = Array.from(document.querySelectorAll('.pDiv, .pGroup, .pcontrol, div, span, b, td'));
             for (const el of elementos) {
                 const txt = el.innerText ? el.innerText.trim() : '';
-                const m = txt.match(/^(\d+)\s*\/\s*(\d+)$/);
+                const m = txt.match(/^(\\d+)\\s*\\/\\s*(\\d+)$/);
                 if (m) {
                     pagAtual = parseInt(m, 10);
                     totalPags = parseInt(m, 10);
@@ -164,24 +163,24 @@ def avancar_proxima_pagina_flexigrid(ctx, pagina_atual):
   try:
     ctx.wait_for_function(
         """({ targetPage, oldRowId }) => {
-            const tr = document.querySelector("tr[id^='tr_']");
-            const reload = document.querySelector('.pReload');
-            const estaCarregando = reload && reload.classList.contains('loading');
-            
-            let paginaMudou = false;
-            const els = Array.from(document.querySelectorAll('.pDiv, .pGroup, .pcontrol, div, span, b, td'));
-            for (const el of els) {
-                const txt = el.innerText ? el.innerText.trim() : '';
-                const m = txt.match(/^(\d+)\s*\/\s*(\d+)$/);
-                if (m && parseInt(m, 10) === targetPage) {
-                    paginaMudou = true;
-                    break;
+                const tr = document.querySelector("tr[id^='tr_']");
+                const reload = document.querySelector('.pReload');
+                const estaCarregando = reload && reload.classList.contains('loading');
+                
+                let paginaMudou = false;
+                const els = Array.from(document.querySelectorAll('.pDiv, .pGroup, .pcontrol, div, span, b, td'));
+                for (const el of els) {
+                    const txt = el.innerText ? el.innerText.trim() : '';
+                    const m = txt.match(/^(\\d+)\\s*\\/\\s*(\\d+)$/);
+                    if (m && parseInt(m, 10) === targetPage) {
+                        paginaMudou = true;
+                        break;
+                    }
                 }
-            }
-            
-            const linhaMudou = oldRowId ? (tr && tr.id !== oldRowId) : true;
-            return (paginaMudou || linhaMudou) && !estaCarregando;
-        }""",
+                
+                const linhaMudou = oldRowId ? (tr && tr.id !== oldRowId) : true;
+                return (paginaMudou || linhaMudou) && !estaCarregando;
+            }""",
         {"targetPage": proxima, "oldRowId": id_anterior},
         timeout=15000,
     )
@@ -258,7 +257,7 @@ def aplicar_filtros(page, ramal_numero):
 
   ctx = obter_contexto_registros(page)
 
-  # Datas
+  # Preenchimento de datas
   for sel in [
       "#calldate_day_start",
       "#calldate_start",
@@ -273,7 +272,7 @@ def aplicar_filtros(page, ramal_numero):
       ctx.locator(sel).fill(DATA_CONSULTA)
       break
 
-  # Horários (00:00:00 até 23:59:59)
+  # Preenchimento de horários (dia completo até 23:59)
   for h_fim in ctx.locator(
       "select[name*='hour_end'], select[name*='hora_fim'],"
       " #calldate_hour_end"
@@ -292,10 +291,8 @@ def aplicar_filtros(page, ramal_numero):
         m_fim.select_option(value=opt.get_attribute("value"))
         break
 
-  # Ramal
   ctx.fill("#src", ramal_numero)
 
-  # Tipo e Status
   for s in ctx.locator("select").all():
     for opt in s.locator("option").all():
       txt = opt.inner_text().strip().lower()
@@ -355,7 +352,7 @@ def processar_chamadas(page, model_whisper):
 
       for idx, linha in enumerate(linhas, start=1):
         tds = linha.locator("td").all()
-        # A tabela possui 9 colunas no total. Ignora apenas linhas corrompidas/vazias:
+        # A tabela possui 9 colunas no total. Ignora apenas linhas vazias (< 5)
         if len(tds) < 5:
           continue
 
@@ -365,7 +362,7 @@ def processar_chamadas(page, model_whisper):
         destino = tds.inner_text().strip()
         status = tds.inner_text().strip()
 
-        # O ícone de áudio (nota musical) está na última coluna (tds[-1])
+        # O ícone de áudio fica na última coluna (coluna 9 / tds[-1])
         coluna_audio = tds[-1]
         icone_audio = coluna_audio.locator("a > img, img")
 
@@ -377,7 +374,12 @@ def processar_chamadas(page, model_whisper):
         caminho_gsm = os.path.join(AUDIO_DIR, f"{arquivo_base}.gsm")
         caminho_wav = os.path.join(AUDIO_DIR, f"{arquivo_base}.wav")
 
-        if icone_audio.count() > 0 and icone_audio.first.is_visible():
+        # Só tenta baixar se houver ícone de áudio e a duração não for 00:00:00
+        if (
+            icone_audio.count() > 0
+            and icone_audio.first.is_visible()
+            and duracao != "00:00:00"
+        ):
           try:
             icone_audio.first.click()
             ctx.wait_for_timeout(500)
