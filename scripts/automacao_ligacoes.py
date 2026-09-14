@@ -35,11 +35,31 @@ RAMAIS = [
 ]
 
 
+def normalizar_data(data_str):
+  if not data_str:
+    return ""
+  data_clean = data_str.strip()
+  digitos = "".join(c for c in data_clean if c.isdigit())
+  if len(digitos) == 8:
+    if int(digitos[:4]) > 1900:
+      return f"{digitos[6:8]}/{digitos[4:6]}/{digitos[:4]}"
+    return f"{digitos[0:2]}/{digitos[2:4]}/{digitos[4:8]}"
+  if "-" in data_clean:
+    partes = data_clean.split("-")
+    if len(partes) == 3:
+      p_a, p_b, p_c = partes
+      if len(p_a) == 4:
+        return f"{p_c}/{p_b}/{p_a}"
+      return f"{p_a}/{p_b}/{p_c}"
+  return data_clean
+
+
 def definir_data_consulta():
   data_env = os.getenv("DATA_MANUAL", "").strip()
   if data_env:
-    print(f"[CONFIG] Utilizando data manual: {data_env}")
-    return data_env
+    data_norm = normalizar_data(data_env)
+    print(f"[CONFIG] Utilizando data manual normalizada: {data_norm}")
+    return data_norm
 
   data = datetime.now() - timedelta(days=1)
   while data.weekday() in (5, 6):
@@ -97,7 +117,7 @@ def obter_contexto_registros(page, timeout=30000):
 
 
 def obter_linhas_tabela(ctx):
-  """Retorna as linhas reais da tabela de registros dentro de .bDiv."""
+  """Retorna as linhas reais da tabela de dados dentro de .bDiv."""
   seletores = [
       ".bDiv tbody tr",
       ".bDiv tr",
@@ -284,6 +304,7 @@ def aplicar_filtros(page, ramal_numero):
 
   ctx = obter_contexto_registros(page)
 
+  # 1. Preenchimento de datas com fechamento do calendário
   for sel in [
       "#calldate_day_start",
       "#calldate_start",
@@ -291,13 +312,23 @@ def aplicar_filtros(page, ramal_numero):
   ]:
     if ctx.locator(sel).count() > 0 and ctx.locator(sel).is_visible():
       ctx.locator(sel).fill(DATA_CONSULTA)
+      page.keyboard.press("Escape")
       break
 
   for sel in ["#calldate_day_end", "#calldate_end", "input[name*='date_end']"]:
     if ctx.locator(sel).count() > 0 and ctx.locator(sel).is_visible():
       ctx.locator(sel).fill(DATA_CONSULTA)
+      page.keyboard.press("Escape")
       break
 
+  # Garante fechamento de qualquer calendário suspenso na tela
+  ctx.evaluate("""() => {
+        if (window.jQuery && window.jQuery.datepicker) {
+            try { window.jQuery.datepicker._hideDatepicker(); } catch(e) {}
+        }
+    }""")
+
+  # 2. Preenchimento de horários (00:00 até 23:59)
   for h_fim in ctx.locator(
       "select[name*='hour_end'], select[name*='hora_fim'],"
       " #calldate_hour_end"
@@ -316,8 +347,10 @@ def aplicar_filtros(page, ramal_numero):
         m_fim.select_option(value=opt.get_attribute("value"))
         break
 
+  # 3. Ramal
   ctx.fill("#src", ramal_numero)
 
+  # 4. Tipo e Status
   for s in ctx.locator("select").all():
     for opt in s.locator("option").all():
       txt = opt.inner_text().strip().lower()
