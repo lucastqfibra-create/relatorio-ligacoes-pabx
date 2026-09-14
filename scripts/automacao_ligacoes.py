@@ -129,31 +129,17 @@ def obter_contexto_registros(page, timeout=30000):
 
 
 def obter_linhas_tabela(ctx):
-  """Identifica as linhas reais de chamadas filtrando linhas que contêm
-
-  o padrão de data 'DD/MM' na primeira célula.
-  """
-  todas_linhas = ctx.locator("tr").all()
-  linhas_chamadas = []
-
-  for linha in todas_linhas:
-    tds = linha.locator("td").all()
-    if len(tds) >= 5:
-      primeira_celula = next(iter(tds)).inner_text().strip()
-      if re.match(r"^\d{2}/\d{2}", primeira_celula):
-        linhas_chamadas.append(linha)
-
-  if len(linhas_chamadas) > 0:
+  """Identifica as linhas reais de chamadas filtrando pelo padrão 'DD/MM HH:MM'."""
+  loc = ctx.locator("tr").filter(
+      has_text=re.compile(r"\d{2}/\d{2}\s+\d{2}:\d{2}")
+  )
+  qtd = loc.count()
+  if qtd > 0:
     log_msg(
-        f"[GRID] {len(linhas_chamadas)} chamadas confirmadas na tabela atual."
+        f"[GRID] {qtd} chamadas confirmadas na tabela (via padrão"
+        " 'DD/MM HH:MM')."
     )
-    return linhas_chamadas
-
-  for sel in [".bDiv tbody tr", ".bDiv tr", "tr[id^='row']"]:
-    loc = ctx.locator(sel)
-    if loc.count() > 0 and loc.first.locator("td").count() >= 5:
-      log_msg(f"[GRID] Fallback: {loc.count()} chamadas pelo seletor '{sel}'.")
-      return loc.all()
+    return loc.all()
 
   log_msg("[GRID] Nenhuma linha de chamada encontrada na tela.")
   return []
@@ -434,12 +420,26 @@ def processar_chamadas(page, model_whisper):
         if len(tds) < 5:
           continue
 
-        col_data, col_duracao, col_origem, col_destino, col_status = tds[0:5]
-        data_hora = col_data.inner_text().strip()
-        duracao = col_duracao.inner_text().strip()
-        origem = col_origem.inner_text().strip()
-        destino = col_destino.inner_text().strip()
-        status = col_status.inner_text().strip()
+        # Encontra dinamicamente em qual coluna está a data
+        idx_data = -1
+        for i, td in enumerate(tds):
+          if re.search(r"\d{2}/\d{2}\s+\d{2}:\d{2}", td.inner_text().strip()):
+            idx_data = i
+            break
+
+        if idx_data < 0 or len(tds) < idx_data + 5:
+          continue
+
+        idx_dur = idx_data + 1
+        idx_orig = idx_data + 2
+        idx_dest = idx_data + 3
+        idx_stat = idx_data + 4
+
+        data_hora = tds[idx_data].inner_text().strip()
+        duracao = tds[idx_dur].inner_text().strip()
+        origem = tds[idx_orig].inner_text().strip()
+        destino = tds[idx_dest].inner_text().strip()
+        status = tds[idx_stat].inner_text().strip()
 
         coluna_audio = tds[-1]
         link_audio = coluna_audio.locator("a").first
@@ -458,10 +458,7 @@ def processar_chamadas(page, model_whisper):
 
         if tem_icone and duracao != "00:00:00":
           try:
-            log_msg(
-                f"[{nome} #{idx}] Abrindo balão de áudio da chamada"
-                f" ({duracao})..."
-            )
+            log_msg(f"[{nome} #{idx}] Abrindo balão de áudio ({duracao})...")
             if link_audio.count() > 0:
               link_audio.click(force=True)
             else:
@@ -480,7 +477,7 @@ def processar_chamadas(page, model_whisper):
               if div_balao.count() > 0:
                 btn_salvar = div_balao.locator("a, img").last
 
-            # Checa se existe link direto (href)
+            # Checa se há link direto para download
             href = ""
             if btn_salvar.count() > 0:
               href = btn_salvar.get_attribute(
@@ -518,9 +515,7 @@ def processar_chamadas(page, model_whisper):
 
             if os.path.exists(caminho_gsm) and os.path.getsize(caminho_gsm) > 0:
               tam = os.path.getsize(caminho_gsm)
-              log_msg(
-                  f"[{nome} #{idx}] Áudio GSM salvo com sucesso ({tam} bytes)."
-              )
+              log_msg(f"[{nome} #{idx}] Áudio GSM salvo ({tam} bytes).")
               converter_gsm_para_wav(caminho_gsm, caminho_wav)
 
               log_msg(f"[{nome} #{idx}] Transcrevendo com Whisper...")
@@ -528,7 +523,7 @@ def processar_chamadas(page, model_whisper):
               transcricao = resultado.get("text", "").strip()
               log_msg(f"[{nome} #{idx}] Transcrição finalizada com sucesso.")
             else:
-              log_msg(f"[{nome} #{idx}] Arquivo de áudio baixado veio vazio.")
+              log_msg(f"[{nome} #{idx}] Arquivo de áudio baixado vazio.")
               transcricao = "Gravação com tamanho 0 bytes"
 
           except Exception as e:
