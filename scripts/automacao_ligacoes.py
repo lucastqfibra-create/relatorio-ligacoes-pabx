@@ -11,7 +11,7 @@ import whisper
 # ==============================================================================
 # CONFIGURAÇÕES E NORMALIZAÇÃO ANTI-ALUCINAÇÃO DO WHISPER
 # ==============================================================================
-DURACAO_MINIMA_SEGUNDOS = int(os.getenv("DURACAO_MINIMA_SEGUNDOS", "5"))
+DURACAO_MINIMA_SEGUNDOS = int(os.getenv("DURACAO_MINIMA_SEGUNDOS", "15"))
 
 INITIAL_PROMPT_WHISPER = (
     "Fibrart Tanques e Pias. Atendimento comercial B2B de televendas e representantes. "
@@ -580,53 +580,54 @@ def processar_chamadas(page, model_whisper):
                 caminho_gsm = os.path.join(AUDIO_DIR, f"{arquivo_base}.gsm")
                 caminho_wav = os.path.join(AUDIO_DIR, f"{arquivo_base}.wav")
 
+                dur_seg = converter_duracao_segundos(duracao)
+
                 if tem_icone and duracao != "00:00:00":
-                    try:
-                        log_msg(f"[{nome} #{idx}] Abrindo balão de áudio ({duracao})...")
-                        linha.scroll_into_view_if_needed()
-
-                        if link_audio.count() > 0:
-                            link_audio.click(force=True)
-                        else:
-                            img_audio.click(force=True)
-
-                        ctx.wait_for_timeout(600)
-
-                        btn_salvar = coluna_audio.locator("img[title*='alvar'], img[src*='save'], a:has(img[src*='save'])").first
+                    if dur_seg < DURACAO_MINIMA_SEGUNDOS:
+                        log_msg(f"[{nome} #{idx}] Duração de {duracao} ({dur_seg}s < {DURACAO_MINIMA_SEGUNDOS}s). Download e transcrição ignorados.")
+                        transcricao = f"[Chamada curta ({duracao}) - áudio não baixado (< 15s)]"
+                    else:
                         try:
-                            btn_salvar.wait_for(state="attached", timeout=4000)
-                        except Exception:
-                            btn_salvar = ctx.locator("img[title*='alvar'], img[src*='save'], a:has(img[src*='save'])").last
+                            log_msg(f"[{nome} #{idx}] Abrindo balão de áudio ({duracao} / {dur_seg}s)...")
+                            linha.scroll_into_view_if_needed()
 
-                        href = ""
-                        try:
-                            href = btn_salvar.evaluate("el => (el.closest('a') ? el.closest('a').href : '') || el.src || ''")
-                        except Exception:
-                            pass
-
-                        if href and (".php" in href or "download" in href or ".gsm" in href or ".wav" in href) and not href.endswith(".gif"):
-                            url_download = href if href.startswith("http") else f"{PBX_URL.rstrip('/')}/{href.lstrip('/')}"
-                            log_msg(f"[{nome} #{idx}] Baixando áudio via requisição direta: {url_download}")
-                            resp = page.request.get(url_download)
-                            with open(caminho_gsm, "wb") as f_out:
-                                f_out.write(resp.body())
-                        else:
-                            log_msg(f"[{nome} #{idx}] Disparando download via JS...")
-                            with page.expect_download(timeout=15000) as download_info:
-                                btn_salvar.evaluate("el => (el.closest('a') ? el.closest('a') : el).click()")
-                            download = download_info.value
-                            download.save_as(caminho_gsm)
-
-                        if os.path.exists(caminho_gsm) and os.path.getsize(caminho_gsm) > 0:
-                            tam = os.path.getsize(caminho_gsm)
-                            log_msg(f"[{nome} #{idx}] Áudio GSM salvo ({tam} bytes).")
-                            converter_gsm_para_wav(caminho_gsm, caminho_wav)
-
-                            dur_seg = converter_duracao_segundos(duracao)
-                            if dur_seg < DURACAO_MINIMA_SEGUNDOS:
-                                log_msg(f"[{nome} #{idx}] Áudio com duração muito curta ({duracao} / {dur_seg}s). Descartando transcrição para evitar alucinações.")
-                                transcricao = f"[Chamada curta ({duracao}) - áudio insuficiente]"
+                            if link_audio.count() > 0:
+                                link_audio.click(force=True)
                             else:
+                                img_audio.click(force=True)
+
+                            ctx.wait_for_timeout(600)
+
+                            btn_salvar = coluna_audio.locator("img[title*='alvar'], img[src*='save'], a:has(img[src*='save'])").first
+                            try:
+                                btn_salvar.wait_for(state="attached", timeout=4000)
+                            except Exception:
+                                btn_salvar = ctx.locator("img[title*='alvar'], img[src*='save'], a:has(img[src*='save'])").last
+
+                            href = ""
+                            try:
+                                href = btn_salvar.evaluate("el => (el.closest('a') ? el.closest('a').href : '') || el.src || ''")
+                            except Exception:
+                                pass
+
+                            if href and (".php" in href or "download" in href or ".gsm" in href or ".wav" in href) and not href.endswith(".gif"):
+                                url_download = href if href.startswith("http") else f"{PBX_URL.rstrip('/')}/{href.lstrip('/')}"
+                                log_msg(f"[{nome} #{idx}] Baixando áudio via requisição direta: {url_download}")
+                                resp = page.request.get(url_download)
+                                with open(caminho_gsm, "wb") as f_out:
+                                    f_out.write(resp.body())
+                            else:
+                                log_msg(f"[{nome} #{idx}] Disparando download via JS...")
+                                with page.expect_download(timeout=15000) as download_info:
+                                    btn_salvar.evaluate("el => (el.closest('a') ? el.closest('a') : el).click()")
+                                download = download_info.value
+                                download.save_as(caminho_gsm)
+
+                            if os.path.exists(caminho_gsm) and os.path.getsize(caminho_gsm) > 0:
+                                tam = os.path.getsize(caminho_gsm)
+                                log_msg(f"[{nome} #{idx}] Áudio GSM salvo ({tam} bytes).")
+                                converter_gsm_para_wav(caminho_gsm, caminho_wav)
+
                                 log_msg(f"[{nome} #{idx}] Transcrevendo com Whisper (initial_prompt + parâmetros anti-alucinação)...[duracao: {duracao}]")
                                 resultado = model_whisper.transcribe(
                                     caminho_wav,
@@ -640,15 +641,15 @@ def processar_chamadas(page, model_whisper):
                                 texto_bruto = resultado.get("text", "").strip()
                                 transcricao = pos_processar_transcricao(texto_bruto)
                                 log_msg(f"[{nome} #{idx}] Transcrição finalizada e normalizada com sucesso.")
-                        else:
-                            log_msg(f"[{nome} #{idx}] Arquivo de áudio baixado vazio.")
-                            transcricao = "Gravação com tamanho 0 bytes"
+                            else:
+                                log_msg(f"[{nome} #{idx}] Arquivo de áudio baixado vazio.")
+                                transcricao = "Gravação com tamanho 0 bytes"
 
-                        ctx.keyboard.press("Escape")
+                            ctx.keyboard.press("Escape")
 
-                    except Exception as e:
-                        log_msg(f"[{nome} #{idx}] Erro ao baixar/transcrever áudio: {e}")
-                        transcricao = f"Falha no download/transcrição: {str(e)}"
+                        except Exception as e:
+                            log_msg(f"[{nome} #{idx}] Erro ao baixar/transcrever áudio: {e}")
+                            transcricao = f"Falha no download/transcrição: {str(e)}"
                 else:
                     if duracao == "00:00:00":
                         transcricao = "Sem gravação (duração 00:00:00)"
