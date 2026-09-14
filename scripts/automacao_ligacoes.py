@@ -36,18 +36,16 @@ RAMAIS = [
 
 
 def definir_data_consulta():
-  # Permite forçar uma data específica via variável de ambiente (ex: "12/09/2026")
   data_env = os.getenv("DATA_MANUAL", "").strip()
   if data_env:
-    print(f"[CONFIG] Utilizando data manual informada via env: {data_env}")
+    print(f"[CONFIG] Utilizando data manual: {data_env}")
     return data_env
 
-  # Padrão: retrocede fins de semana para a última sexta-feira
   data = datetime.now() - timedelta(days=1)
-  while data.weekday() in (5, 6):  # 5 = Sábado, 6 = Domingo
+  while data.weekday() in (5, 6):  # Retrocede fim de semana para sexta-feira
     data -= timedelta(days=1)
   data_calculada = data.strftime("%d/%m/%Y")
-  print(f"[CONFIG] Data do último dia útil calculada: {data_calculada}")
+  print(f"[CONFIG] Data da consulta (último dia útil): {data_calculada}")
   return data_calculada
 
 
@@ -91,63 +89,42 @@ def obter_contexto_registros(page, timeout=30000):
   screenshot_path = os.path.join(OUTPUT_DIR, "erro_timeout_src.png")
   try:
     page.screenshot(path=screenshot_path)
-    print(f"Screenshot salvo em: {screenshot_path}")
   except Exception:
     pass
-
-  print(f"[ERRO] URL atual: {page.url}")
   raise TimeoutError(
       f"Campo #src não foi encontrado após {timeout}ms na URL {page.url}."
   )
 
 
 def obter_info_paginacao(ctx):
+  """Detecta a página atual e total de páginas a partir do texto 'X / Y' do PABX."""
   try:
     dados = ctx.evaluate("""() => {
-            const pcontrol = document.querySelector('.pDiv .pcontrol, .pcontrol');
-            const pagestat = document.querySelector('.pDiv .pPageStat, .pPageStat');
-            const pcontrolSpan = document.querySelector('.pDiv .pcontrol span, .pcontrol span');
-            const pcontrolInput = document.querySelector('.pDiv .pcontrol input, .pcontrol input');
-            const selectRp = document.querySelector('.pDiv select[name="rp"], select[name="rp"]');
+            let pagAtual = 1;
+            let totalPags = 1;
+            let textoEncontrado = '';
 
-            return {
-                pcontrol_text: pcontrol ? pcontrol.innerText.trim() : '',
-                pcontrol_span: pcontrolSpan ? pcontrolSpan.innerText.trim() : '',
-                pagestat_text: pagestat ? pagestat.innerText.trim() : '',
-                input_val: pcontrolInput ? pcontrolInput.value.trim() : '1',
-                rp_val: selectRp ? selectRp.value.trim() : '15'
-            };
+            const elementos = Array.from(document.querySelectorAll('.pDiv, .pGroup, .pcontrol, div, span, b, td'));
+            for (const el of elementos) {
+                const txt = el.innerText ? el.innerText.trim() : '';
+                const m = txt.match(/^(\d+)\s*\/\s*(\d+)$/);
+                if (m) {
+                    pagAtual = parseInt(m, 10);
+                    totalPags = parseInt(m, 10);
+                    textoEncontrado = txt;
+                    break;
+                }
+            }
+            return { pagina_atual: pagAtual, total_paginas: totalPags, texto: textoEncontrado };
         }""")
 
-    pagina_atual = (
-        int(dados.get("input_val", "1"))
-        if dados.get("input_val", "").isdigit()
-        else 1
-    )
-    total_paginas = 1
-
-    span_txt = dados.get("pcontrol_span", "")
-    if span_txt.isdigit() and int(span_txt) > 1:
-      total_paginas = int(span_txt)
-
-    if total_paginas == 1:
-      nums_pcontrol = re.findall(r"\d+", dados.get("pcontrol_text", ""))
-      if len(nums_pcontrol) >= 2:
-        total_paginas = int(nums_pcontrol[-1])
-
-    if total_paginas == 1:
-      nums_stat = re.findall(r"\d+", dados.get("pagestat_text", ""))
-      if len(nums_stat) >= 3:
-        por_pag = int(nums_stat[1]) - int(nums_stat[0]) + 1
-        total_reg = int(nums_stat[-1])
-        if por_pag > 0 and total_reg > 0:
-          total_paginas = math.ceil(total_reg / por_pag)
-
+    pag_atual = dados.get("pagina_atual", 1)
+    tot_pags = dados.get("total_paginas", 1)
     print(
-        f"[PAGINAÇÃO] Página Atual: {pagina_atual} | Total Páginas:"
-        f" {total_paginas} | Status: {dados.get('pagestat_text', '')}"
+        f"[PAGINAÇÃO DETECTADA] Página {pag_atual} de {tot_pags} (Indicador:"
+        f" '{dados.get('texto', '')}')"
     )
-    return {"pagina_atual": pagina_atual, "total_paginas": total_paginas}
+    return {"pagina_atual": pag_atual, "total_paginas": tot_pags}
   except Exception as e:
     print(f"Aviso ao ler paginação: {e}")
     return {"pagina_atual": 1, "total_paginas": 1}
@@ -165,61 +142,45 @@ def avancar_proxima_pagina_flexigrid(ctx, pagina_atual):
       primeira_linha.get_attribute("id") if primeira_linha.count() > 0 else ""
   )
 
-  sucesso_js = ctx.evaluate(
-      """(targetPage) => {
-        let disparou = false;
-        const tabelas = window.jQuery ? window.jQuery('table') : [];
-        if (tabelas.length) {
-            tabelas.each(function() {
-                if (this.grid && this.p) {
-                    this.grid.loading = false;
-                    this.p.newp = targetPage;
-                    this.grid.populate();
-                    disparou = true;
-                }
-            });
-        }
-        
-        if (!disparou) {
-            const input = document.querySelector('.pDiv .pcontrol input, .pcontrol input');
-            if (input) {
-                input.value = targetPage;
-                const event = new KeyboardEvent('keydown', {
-                    bubbles: true,
-                    cancelable: true,
-                    keyCode: 13,
-                    which: 13
-                });
-                input.dispatchEvent(event);
-                disparou = true;
-            }
-        }
-        return disparou;
-    }""",
-      proxima,
-  )
+  clicou = False
+  btn_next = ctx.locator(".pDiv .pNext, .pNext, div.pButton.pNext").first
+  if btn_next.count() > 0 and btn_next.is_visible():
+    try:
+      btn_next.click(force=True)
+      clicou = True
+    except Exception as e:
+      print(f"Clique Playwright no .pNext falhou: {e}")
 
-  if not sucesso_js:
-    input_pag = ctx.locator(".pDiv .pcontrol input, .pcontrol input").first
-    if input_pag.is_visible():
-      try:
-        input_pag.fill(str(proxima))
-        input_pag.press("Enter")
-      except Exception as e:
-        print(f"Tentativa via input Playwright falhou: {e}")
+  if not clicou:
+    ctx.evaluate("""() => {
+            if (window.jQuery && window.jQuery('.pNext').length) {
+                window.jQuery('.pNext').click();
+            } else {
+                const el = document.querySelector('.pNext');
+                if (el) el.click();
+            }
+        }""")
 
   try:
     ctx.wait_for_function(
         """({ targetPage, oldRowId }) => {
-            const inp = document.querySelector('.pDiv .pcontrol input, .pcontrol input');
             const tr = document.querySelector("tr[id^='tr_']");
             const reload = document.querySelector('.pReload');
-            
             const estaCarregando = reload && reload.classList.contains('loading');
-            const paginaMudou = inp && parseInt(inp.value, 10) === targetPage;
-            const linhaMudou = oldRowId ? (tr && tr.id !== oldRowId) : true;
             
-            return paginaMudou && linhaMudou && !estaCarregando;
+            let paginaMudou = false;
+            const els = Array.from(document.querySelectorAll('.pDiv, .pGroup, .pcontrol, div, span, b, td'));
+            for (const el of els) {
+                const txt = el.innerText ? el.innerText.trim() : '';
+                const m = txt.match(/^(\d+)\s*\/\s*(\d+)$/);
+                if (m && parseInt(m, 10) === targetPage) {
+                    paginaMudou = true;
+                    break;
+                }
+            }
+            
+            const linhaMudou = oldRowId ? (tr && tr.id !== oldRowId) : true;
+            return (paginaMudou || linhaMudou) && !estaCarregando;
         }""",
         {"targetPage": proxima, "oldRowId": id_anterior},
         timeout=15000,
@@ -297,28 +258,22 @@ def aplicar_filtros(page, ramal_numero):
 
   ctx = obter_contexto_registros(page)
 
-  # 1. Preenchimento de Datas
-  for sel_data in [
+  # Datas
+  for sel in [
       "#calldate_day_start",
       "#calldate_start",
       "input[name*='date_start']",
-      "input[name*='calldate_start']",
   ]:
-    if ctx.locator(sel_data).count() > 0 and ctx.locator(sel_data).is_visible():
-      ctx.locator(sel_data).fill(DATA_CONSULTA)
+    if ctx.locator(sel).count() > 0 and ctx.locator(sel).is_visible():
+      ctx.locator(sel).fill(DATA_CONSULTA)
       break
 
-  for sel_data in [
-      "#calldate_day_end",
-      "#calldate_end",
-      "input[name*='date_end']",
-      "input[name*='calldate_end']",
-  ]:
-    if ctx.locator(sel_data).count() > 0 and ctx.locator(sel_data).is_visible():
-      ctx.locator(sel_data).fill(DATA_CONSULTA)
+  for sel in ["#calldate_day_end", "#calldate_end", "input[name*='date_end']"]:
+    if ctx.locator(sel).count() > 0 and ctx.locator(sel).is_visible():
+      ctx.locator(sel).fill(DATA_CONSULTA)
       break
 
-  # 2. Preenchimento de Horário (Garante o dia completo até 23:59:59)
+  # Horários (00:00:00 até 23:59:59)
   for h_fim in ctx.locator(
       "select[name*='hour_end'], select[name*='hora_fim'],"
       " #calldate_hour_end"
@@ -337,33 +292,25 @@ def aplicar_filtros(page, ramal_numero):
         m_fim.select_option(value=opt.get_attribute("value"))
         break
 
-  # 3. Preenchimento do Ramal (Origem)
+  # Ramal
   ctx.fill("#src", ramal_numero)
 
-  # 4. Seleção de Tipo e Status com correspondência flexível
+  # Tipo e Status
   for s in ctx.locator("select").all():
     for opt in s.locator("option").all():
       txt = opt.inner_text().strip().lower()
       val = opt.get_attribute("value")
-
-      # Tipo Saínte
-      if any(termo in txt for termo in ["saínt", "saint", "saíd", "said"]):
+      if any(t in txt for t in ["saínt", "saint", "saíd", "said"]):
         s.select_option(value=val)
-        print(f"Filtro Tipo ajustado para: '{opt.inner_text().strip()}'")
         break
-      # Status Atendida
-      elif any(termo in txt for termo in ["atendid", "answered"]):
+      elif any(t in txt for t in ["atendid", "answered"]):
         s.select_option(value=val)
-        print(f"Filtro Status ajustado para: '{opt.inner_text().strip()}'")
         break
 
-  # 5. Disparo da Consulta
   print(f"Disparando consulta (#confirm) para o dia {DATA_CONSULTA}...")
   ctx.click("#confirm")
 
-  # Aguarda o carregamento assíncrono do Flexigrid ser concluído
   try:
-    # Aguarda o indicador .loading aparecer e sumir
     page.wait_for_timeout(1000)
     ctx.locator(".pReload.loading").wait_for(state="detached", timeout=20000)
     ctx.locator(".gBlock").wait_for(state="detached", timeout=20000)
@@ -372,13 +319,10 @@ def aplicar_filtros(page, ramal_numero):
 
   page.wait_for_timeout(2000)
 
-  # Tira um screenshot do resultado da consulta para auditoria nos Artifacts
-  screenshot_resultado = os.path.join(
-      OUTPUT_DIR, f"consulta_{ramal_numero}.png"
-  )
+  screenshot_path = os.path.join(OUTPUT_DIR, f"consulta_{ramal_numero}.png")
   try:
-    page.screenshot(path=screenshot_resultado)
-    print(f"Screenshot da consulta salvo em: {screenshot_resultado}")
+    page.screenshot(path=screenshot_path)
+    print(f"Screenshot da consulta salvo em: {screenshot_path}")
   except Exception:
     pass
 
@@ -406,21 +350,25 @@ def processar_chamadas(page, model_whisper):
 
       print(
           f"\n--- [{nome}] Processando Página {pagina_atual} de {total_paginas}"
-          f" ({len(linhas)} chamadas detectadas) ---"
+          f" ({len(linhas)} chamadas na tabela) ---"
       )
 
       for idx, linha in enumerate(linhas, start=1):
         tds = linha.locator("td").all()
-        if len(tds) < 10:
+        # A tabela possui 9 colunas no total. Ignora apenas linhas corrompidas/vazias:
+        if len(tds) < 5:
           continue
 
         data_hora = tds[0].inner_text().strip()
-        duracao = tds[1].inner_text().strip()
-        origem = tds[2].inner_text().strip()
-        destino = tds[3].inner_text().strip()
-        status = tds[4].inner_text().strip()
+        duracao = tds.inner_text().strip()
+        origem = tds.inner_text().strip()
+        destino = tds.inner_text().strip()
+        status = tds.inner_text().strip()
 
-        icone_audio = tds[9].locator("a > img")
+        # O ícone de áudio (nota musical) está na última coluna (tds[-1])
+        coluna_audio = tds[-1]
+        icone_audio = coluna_audio.locator("a > img, img")
+
         transcricao = "Sem gravação"
         data_formatada = (
             data_hora.replace("/", "-").replace(":", "-").replace(" ", "_")
@@ -429,12 +377,12 @@ def processar_chamadas(page, model_whisper):
         caminho_gsm = os.path.join(AUDIO_DIR, f"{arquivo_base}.gsm")
         caminho_wav = os.path.join(AUDIO_DIR, f"{arquivo_base}.wav")
 
-        if icone_audio.count() > 0:
+        if icone_audio.count() > 0 and icone_audio.first.is_visible():
           try:
             icone_audio.first.click()
             ctx.wait_for_timeout(500)
-            btn_salvar = tds[9].locator(
-                "div img, img[alt*='Salvar'], img[title*='Salvar']"
+            btn_salvar = coluna_audio.locator(
+                "div img, img[alt*='Salvar'], img[title*='Salvar'], img"
             ).first
 
             with page.expect_download(timeout=15000) as download_info:
@@ -453,6 +401,11 @@ def processar_chamadas(page, model_whisper):
                 f" {pagina_atual}): {e}"
             )
             transcricao = f"Falha no download/transcrição: {str(e)}"
+        else:
+          if duracao == "00:00:00":
+            transcricao = "Sem gravação (duração 00:00:00)"
+          else:
+            transcricao = "Sem gravação disponível"
 
         registros.append({
             "Ramal": num,
