@@ -34,6 +34,22 @@ RAMAIS = [
     {"numero": "2005", "nome": "Julia"},
 ]
 
+OUTPUT_DIR = "ligacoes"
+AUDIO_DIR = os.path.join(OUTPUT_DIR, "audios")
+os.makedirs(AUDIO_DIR, exist_ok=True)
+LOG_FILE = os.path.join(OUTPUT_DIR, "log_execucao.txt")
+
+
+def log_msg(msg):
+  timestamp = datetime.now().strftime("%H:%M:%S")
+  linha_log = f"{timestamp} - {msg}"
+  print(linha_log)
+  try:
+    with open(LOG_FILE, "a", encoding="utf-8") as f:
+      f.write(linha_log + "\n")
+  except Exception:
+    pass
+
 
 def normalizar_data(data_str):
   if not data_str:
@@ -58,23 +74,19 @@ def definir_data_consulta():
   data_env = os.getenv("DATA_MANUAL", "").strip()
   if data_env:
     data_norm = normalizar_data(data_env)
-    print(f"[CONFIG] Utilizando data manual normalizada: {data_norm}")
+    log_msg(f"[CONFIG] Utilizando data manual normalizada: {data_norm}")
     return data_norm
 
   data = datetime.now() - timedelta(days=1)
   while data.weekday() in (5, 6):
     data -= timedelta(days=1)
   data_calculada = data.strftime("%d/%m/%Y")
-  print(f"[CONFIG] Data da consulta (último dia útil): {data_calculada}")
+  log_msg(f"[CONFIG] Data da consulta (último dia útil): {data_calculada}")
   return data_calculada
 
 
 DATA_CONSULTA = definir_data_consulta()
 URL_CONTAINER = f"{PBX_URL}/pbxip/framework/container.php?token=MAIN/cmVwb3J0LmNhbGxzLmRldGFpbGVk"
-
-OUTPUT_DIR = "ligacoes"
-AUDIO_DIR = os.path.join(OUTPUT_DIR, "audios")
-os.makedirs(AUDIO_DIR, exist_ok=True)
 
 
 def converter_gsm_para_wav(gsm_path, wav_path):
@@ -99,7 +111,7 @@ def obter_contexto_registros(page, timeout=30000):
             frame.locator("#src").count() > 0
             and frame.locator("#src").is_visible()
         ):
-          print(f"Módulo de registros localizado no frame: {frame.name}")
+          log_msg(f"Módulo de registros localizado no frame: {frame.name}")
           return frame
       except Exception:
         pass
@@ -117,22 +129,33 @@ def obter_contexto_registros(page, timeout=30000):
 
 
 def obter_linhas_tabela(ctx):
-  """Retorna as linhas reais da tabela de dados dentro de .bDiv."""
-  seletores = [
-      ".bDiv tbody tr",
-      ".bDiv tr",
-      "tr[id^='row']",
-      "tr[id^='tr_']",
-      "table tbody tr",
-  ]
-  for sel in seletores:
+  """Identifica as linhas reais de chamadas filtrando linhas que contêm
+
+  o padrão de data 'DD/MM' na primeira célula.
+  """
+  todas_linhas = ctx.locator("tr").all()
+  linhas_chamadas = []
+
+  for linha in todas_linhas:
+    tds = linha.locator("td").all()
+    if len(tds) >= 5:
+      primeira_celula = next(iter(tds)).inner_text().strip()
+      if re.match(r"^\d{2}/\d{2}", primeira_celula):
+        linhas_chamadas.append(linha)
+
+  if len(linhas_chamadas) > 0:
+    log_msg(
+        f"[GRID] {len(linhas_chamadas)} chamadas confirmadas na tabela atual."
+    )
+    return linhas_chamadas
+
+  for sel in [".bDiv tbody tr", ".bDiv tr", "tr[id^='row']"]:
     loc = ctx.locator(sel)
-    qtd = loc.count()
-    if qtd > 0:
-      if loc.first.locator("td").count() >= 5:
-        print(f"[GRID] {qtd} chamadas detectadas pelo seletor '{sel}'.")
-        return loc.all()
-  print("[GRID] Nenhuma linha de chamada encontrada com os seletores testados.")
+    if loc.count() > 0 and loc.first.locator("td").count() >= 5:
+      log_msg(f"[GRID] Fallback: {loc.count()} chamadas pelo seletor '{sel}'.")
+      return loc.all()
+
+  log_msg("[GRID] Nenhuma linha de chamada encontrada na tela.")
   return []
 
 
@@ -160,21 +183,20 @@ def obter_info_paginacao(ctx):
 
     pag_atual = dados.get("pagina_atual", 1)
     tot_pags = dados.get("total_paginas", 1)
-    print(
-        f"[PAGINAÇÃO DETECTADA] Página {pag_atual} de {tot_pags} (Indicador:"
+    log_msg(
+        f"[PAGINAÇÃO] Página {pag_atual} de {tot_pags} (Indicador:"
         f" '{dados.get('texto', '')}')"
     )
     return {"pagina_atual": pag_atual, "total_paginas": tot_pags}
   except Exception as e:
-    print(f"Aviso ao ler paginação: {e}")
+    log_msg(f"Aviso ao ler paginação: {e}")
     return {"pagina_atual": 1, "total_paginas": 1}
 
 
 def avancar_proxima_pagina_flexigrid(ctx, pagina_atual):
   proxima = pagina_atual + 1
-  print(
-      f"-> Acionando transição da página {pagina_atual} para a página"
-      f" {proxima}..."
+  log_msg(
+      f"-> Acionando avanço da página {pagina_atual} para a página {proxima}..."
   )
 
   linhas_antes = obter_linhas_tabela(ctx)
@@ -191,7 +213,7 @@ def avancar_proxima_pagina_flexigrid(ctx, pagina_atual):
       btn_next.click(force=True)
       clicou = True
     except Exception as e:
-      print(f"Clique Playwright no .pNext falhou: {e}")
+      log_msg(f"Clique Playwright no .pNext: {e}")
 
   if not clicou:
     ctx.evaluate("""() => {
@@ -223,27 +245,28 @@ def avancar_proxima_pagina_flexigrid(ctx, pagina_atual):
                     }
                 }
                 
-                const primeiraLinha = document.querySelector('.bDiv tbody tr, .bDiv tr, table tbody tr');
-                const linhaMudou = oldRowText ? (primeiraLinha && primeiraLinha.innerText.trim() !== oldRowText) : true;
+                const primeiraLinha = document.querySelector('tr td');
+                const trPai = primeiraLinha ? primeiraLinha.closest('tr') : null;
+                const linhaMudou = oldRowText ? (trPai && trPai.innerText.trim() !== oldRowText) : true;
                 
                 return (paginaMudou || linhaMudou) && !estaCarregando;
             }""",
         {"targetPage": proxima, "oldRowText": texto_linha_anterior},
         timeout=15000,
     )
-    print(f"-> Sucesso: Página {proxima} confirmada no DOM.")
+    log_msg(f"-> Sucesso: Página {proxima} confirmada no DOM.")
     ctx.wait_for_timeout(1000)
     return True
   except Exception as e:
-    print(
-        f"Aviso: Não foi possível confirmar a transição para a página {proxima}"
-        f" ({e})."
+    log_msg(
+        "Aviso: Não foi possível confirmar a transição para a página"
+        f" {proxima} ({e})."
     )
     return False
 
 
 def login_pabx(page):
-  print(f"Navegando para a página de login: {PBX_URL}")
+  log_msg(f"Navegando para a página de login: {PBX_URL}")
   page.goto(PBX_URL, timeout=60000)
   page.wait_for_load_state("domcontentloaded")
   page.wait_for_timeout(2000)
@@ -267,14 +290,14 @@ def login_pabx(page):
             " #user, #login"
         ).first
         ctx_login = frame
-        print(f"Formulário de login localizado no frame: {frame.name}")
+        log_msg(f"Formulário de login localizado no frame: {frame.name}")
         break
 
   if not campo_senha:
-    print("Aviso: Campo de senha não localizado.")
+    log_msg("Aviso: Campo de senha não localizado.")
     return
 
-  print("Preenchendo credenciais de acesso...")
+  log_msg("Preenchendo credenciais de acesso...")
   campo_usuario.fill(PBX_USER)
   campo_senha.fill(PBX_PASSWORD)
 
@@ -293,18 +316,17 @@ def login_pabx(page):
 
   page.wait_for_load_state("networkidle")
   page.wait_for_timeout(2000)
-  print("Login efetuado.")
+  log_msg("Login efetuado com sucesso.")
 
 
 def aplicar_filtros(page, ramal_numero):
-  print(f"Acessando módulo de registros: {URL_CONTAINER}")
+  log_msg(f"Acessando módulo de registros: {URL_CONTAINER}")
   page.goto(URL_CONTAINER, timeout=60000)
   page.wait_for_load_state("domcontentloaded")
   page.wait_for_timeout(2000)
 
   ctx = obter_contexto_registros(page)
 
-  # 1. Preenchimento de datas com fechamento do calendário
   for sel in [
       "#calldate_day_start",
       "#calldate_start",
@@ -321,14 +343,12 @@ def aplicar_filtros(page, ramal_numero):
       page.keyboard.press("Escape")
       break
 
-  # Garante fechamento de qualquer calendário suspenso na tela
   ctx.evaluate("""() => {
         if (window.jQuery && window.jQuery.datepicker) {
             try { window.jQuery.datepicker._hideDatepicker(); } catch(e) {}
         }
     }""")
 
-  # 2. Preenchimento de horários (00:00 até 23:59)
   for h_fim in ctx.locator(
       "select[name*='hour_end'], select[name*='hora_fim'],"
       " #calldate_hour_end"
@@ -347,10 +367,8 @@ def aplicar_filtros(page, ramal_numero):
         m_fim.select_option(value=opt.get_attribute("value"))
         break
 
-  # 3. Ramal
   ctx.fill("#src", ramal_numero)
 
-  # 4. Tipo e Status
   for s in ctx.locator("select").all():
     for opt in s.locator("option").all():
       txt = opt.inner_text().strip().lower()
@@ -362,7 +380,10 @@ def aplicar_filtros(page, ramal_numero):
         s.select_option(value=val)
         break
 
-  print(f"Disparando consulta (#confirm) para o dia {DATA_CONSULTA}...")
+  log_msg(
+      f"Disparando consulta (#confirm) para o ramal {ramal_numero} no dia"
+      f" {DATA_CONSULTA}..."
+  )
   ctx.click("#confirm")
 
   try:
@@ -377,7 +398,7 @@ def aplicar_filtros(page, ramal_numero):
   screenshot_path = os.path.join(OUTPUT_DIR, f"consulta_{ramal_numero}.png")
   try:
     page.screenshot(path=screenshot_path)
-    print(f"Screenshot da consulta salvo em: {screenshot_path}")
+    log_msg(f"Screenshot da consulta salvo em: {screenshot_path}")
   except Exception:
     pass
 
@@ -390,9 +411,9 @@ def processar_chamadas(page, model_whisper):
   for ramal in RAMAIS:
     num = ramal["numero"]
     nome = ramal["nome"]
-    print(f"\n==========================================")
-    print(f"Consultando Ramal {num} ({nome}) para o dia {DATA_CONSULTA}")
-    print(f"==========================================")
+    log_msg(f"\n==========================================")
+    log_msg(f"Consultando Ramal {num} ({nome}) para o dia {DATA_CONSULTA}")
+    log_msg(f"==========================================")
 
     ctx = aplicar_filtros(page, num)
 
@@ -403,9 +424,9 @@ def processar_chamadas(page, model_whisper):
 
       linhas = obter_linhas_tabela(ctx)
 
-      print(
+      log_msg(
           f"\n--- [{nome}] Processando Página {pagina_atual} de {total_paginas}"
-          f" ({len(linhas)} chamadas detectadas) ---"
+          f" ({len(linhas)} chamadas identificadas) ---"
       )
 
       for idx, linha in enumerate(linhas, start=1):
@@ -421,7 +442,11 @@ def processar_chamadas(page, model_whisper):
         status = col_status.inner_text().strip()
 
         coluna_audio = tds[-1]
-        icone_audio = coluna_audio.locator("a > img, img")
+        link_audio = coluna_audio.locator("a").first
+        img_audio = coluna_audio.locator("img").first
+        tem_icone = (
+            img_audio.count() > 0 and img_audio.is_visible()
+        ) or link_audio.count() > 0
 
         transcricao = "Sem gravação"
         data_formatada = (
@@ -431,36 +456,83 @@ def processar_chamadas(page, model_whisper):
         caminho_gsm = os.path.join(AUDIO_DIR, f"{arquivo_base}.gsm")
         caminho_wav = os.path.join(AUDIO_DIR, f"{arquivo_base}.wav")
 
-        if (
-            icone_audio.count() > 0
-            and icone_audio.first.is_visible()
-            and duracao != "00:00:00"
-        ):
+        if tem_icone and duracao != "00:00:00":
           try:
-            icone_audio.first.click()
-            ctx.wait_for_timeout(500)
+            log_msg(
+                f"[{nome} #{idx}] Abrindo balão de áudio da chamada"
+                f" ({duracao})..."
+            )
+            if link_audio.count() > 0:
+              link_audio.click(force=True)
+            else:
+              img_audio.click(force=True)
+
+            ctx.wait_for_timeout(800)
+
+            # Busca o botão de salvar
             btn_salvar = ctx.locator(
-                "img[alt*='Salvar'], img[title*='Salvar'], img[src*='save'],"
+                "img[alt*='alvar'], img[title*='alvar'], a[title*='alvar'],"
+                " a[href*='download'], a[href*='audio'], img[src*='save'],"
                 " img[src*='disk']"
             ).first
-            if not btn_salvar.is_visible():
-              btn_salvar = coluna_audio.locator("div img, img").last
+            if not (btn_salvar.count() > 0 and btn_salvar.is_visible()):
+              div_balao = coluna_audio.locator("div")
+              if div_balao.count() > 0:
+                btn_salvar = div_balao.locator("a, img").last
 
-            with page.expect_download(timeout=15000) as download_info:
-              btn_salvar.click()
+            # Checa se existe link direto (href)
+            href = ""
+            if btn_salvar.count() > 0:
+              href = btn_salvar.get_attribute(
+                  "href"
+              ) or btn_salvar.locator("xpath=..").get_attribute("href")
 
-            download = download_info.value
-            download.save_as(caminho_gsm)
+            if href and (
+                "http" in href
+                or ".php" in href
+                or ".gsm" in href
+                or ".wav" in href
+            ):
+              url_download = (
+                  href
+                  if href.startswith("http")
+                  else f"{PBX_URL.rstrip('/')}/{href.lstrip('/')}"
+              )
+              log_msg(
+                  f"[{nome} #{idx}] Baixando áudio via link direto:"
+                  f" {url_download}"
+              )
+              resp = page.request.get(url_download)
+              with open(caminho_gsm, "wb") as f_out:
+                f_out.write(resp.body())
+            else:
+              log_msg(f"[{nome} #{idx}] Interceptando evento de download...")
+              with page.expect_download(timeout=15000) as download_info:
+                if btn_salvar.count() > 0 and btn_salvar.is_visible():
+                  btn_salvar.click(force=True)
+                else:
+                  coluna_audio.locator("img").last.click(force=True)
 
-            converter_gsm_para_wav(caminho_gsm, caminho_wav)
+              download = download_info.value
+              download.save_as(caminho_gsm)
 
-            resultado = model_whisper.transcribe(caminho_wav, language="pt")
-            transcricao = resultado.get("text", "").strip()
+            if os.path.exists(caminho_gsm) and os.path.getsize(caminho_gsm) > 0:
+              tam = os.path.getsize(caminho_gsm)
+              log_msg(
+                  f"[{nome} #{idx}] Áudio GSM salvo com sucesso ({tam} bytes)."
+              )
+              converter_gsm_para_wav(caminho_gsm, caminho_wav)
+
+              log_msg(f"[{nome} #{idx}] Transcrevendo com Whisper...")
+              resultado = model_whisper.transcribe(caminho_wav, language="pt")
+              transcricao = resultado.get("text", "").strip()
+              log_msg(f"[{nome} #{idx}] Transcrição finalizada com sucesso.")
+            else:
+              log_msg(f"[{nome} #{idx}] Arquivo de áudio baixado veio vazio.")
+              transcricao = "Gravação com tamanho 0 bytes"
+
           except Exception as e:
-            print(
-                f"Erro ao processar áudio da chamada {idx} (Pág"
-                f" {pagina_atual}): {e}"
-            )
+            log_msg(f"[{nome} #{idx}] Erro ao baixar/transcrever áudio: {e}")
             transcricao = f"Falha no download/transcrição: {str(e)}"
         else:
           if duracao == "00:00:00":
@@ -483,19 +555,21 @@ def processar_chamadas(page, model_whisper):
         })
 
       if total_paginas > 1 and pagina_atual >= total_paginas:
-        print(
+        log_msg(
             f"[{nome}] Concluído: todas as {total_paginas} páginas foram"
             " processadas."
         )
         break
 
       if len(linhas) == 0:
-        print(f"[{nome}] Nenhuma linha encontrada na página {pagina_atual}.")
+        log_msg(
+            f"[{nome}] Nenhuma linha encontrada na página {pagina_atual}."
+        )
         break
 
       avancou = avancar_proxima_pagina_flexigrid(ctx, pagina_atual)
       if not avancou:
-        print(f"[{nome}] Fim da paginação após página {pagina_atual}.")
+        log_msg(f"[{nome}] Fim da paginação após página {pagina_atual}.")
         break
 
       pagina_atual += 1
@@ -524,22 +598,28 @@ def gerar_relatorios(registros):
       f.write(f"- **Status:** {r['Status']}\n")
       f.write(f"- **Transcrição:**\n> {r['Transcrição']}\n\n---\n")
 
-  print(f"\nRelatórios gerados em:\n- {csv_path}\n- {md_path}")
+  log_msg(
+      f"\nRelatórios gerados com sucesso ({len(df)} chamadas):\n-"
+      f" {csv_path}\n- {md_path}"
+  )
 
 
 def main():
-  print("Carregando modelo Whisper base...")
+  log_msg("Iniciando rotina de gravações e transcrições do PABX...")
+  log_msg("Carregando modelo Whisper base...")
   model_whisper = whisper.load_model("base")
 
   with sync_playwright() as p:
     browser = p.chromium.launch(headless=True)
-    page = browser.new_page()
+    context = browser.new_context(accept_downloads=True)
+    page = context.new_page()
 
     login_pabx(page)
     registros = processar_chamadas(page, model_whisper)
     gerar_relatorios(registros)
 
     browser.close()
+  log_msg("Rotina concluída com sucesso.")
 
 
 if __name__ == "__main__":
