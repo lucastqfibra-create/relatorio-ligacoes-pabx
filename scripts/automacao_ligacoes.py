@@ -140,7 +140,7 @@ def pos_processar_transcricao(texto):
     # Verifica se restou conteúdo inteligível
     texto_sem_pontuacao = re.sub(r"[^\w\s]", "", limpo).strip()
     if len(texto_sem_pontuacao) < 2:
-        return "[Áudio inaudível / Ruído de fundo]"
+        return "[Áudio sem fala inteligível / Ruído]"
 
     return limpo
 
@@ -264,105 +264,89 @@ def obter_linhas_tabela(ctx):
 
 def obter_info_paginacao(ctx):
     """
-    Inspeciona o DOM de forma ampla para detectar controles de paginacao,
-    links numericos (1, 2, 3...), botoes Proxima / Next, ou dados do Flexigrid.
+    Inspeciona o botao oficial de paginacao do PABX usando exclusivamente classes e onclick:
+    <button class="bot-next pagination-next" type="button" onclick="resultset_next()" style="opacity: 1;"></button>
     """
     try:
         dados = ctx.evaluate("""() => {
-            const pcontrolInput = document.querySelector('.pcontrol input, input[name="page"], .pDiv .pcontrol input');
-            const pcontrolSpan = document.querySelector('.pcontrol span, .pDiv .pcontrol span');
-            const pagestat = document.querySelector('.pPageStat, .pDiv .pPageStat');
-            const btnNextFlexi = document.querySelector('.pNext, .pDiv .pNext');
-
-            // Varre todos os links e botoes na tela para achar links de paginas
-            const allLinks = Array.from(document.querySelectorAll('a, button, input[type="button"], input[type="submit"]'));
-            const pageNumbers = [];
-            let hasNextLink = false;
-            let nextLinkText = '';
-
-            for (const el of allLinks) {
-                const t = (el.innerText || el.value || '').trim();
-                const h = (el.getAttribute('href') || '') + ' ' + (el.getAttribute('onclick') || '');
-                const c = (el.className || '').toLowerCase();
-
-                if (/^\d+$/.test(t)) {
-                    pageNumbers.push(parseInt(t, 10));
-                }
-
-                const tLower = t.toLowerCase();
-                if (t === '>' || t === '>>' || tLower.includes('próx') || tLower.includes('prox') || tLower.includes('next') || tLower.includes('seguinte')) {
-                    const isDisabled = c.includes('disabled') || c.includes('pdisabled') || el.hasAttribute('disabled');
-                    if (!isDisabled) {
-                        hasNextLink = true;
-                        nextLinkText = t;
-                    }
-                }
+            const btn = document.querySelector('button.bot-next.pagination-next, button.pagination-next, button.bot-next, button[onclick*="resultset_next"], [onclick*="resultset_next"]');
+            if (!btn) {
+                return { existe: false, tem_proxima: false, opacity: 0, info: 'Botao nao encontrado' };
             }
-
-            // Textos informativos de registros (ex: 'Exibindo 1 a 20 de 45')
-            let statText = pagestat ? pagestat.innerText.trim() : '';
-            if (!statText) {
-                const els = Array.from(document.querySelectorAll('div, td, span, b, p'));
-                for (const el of els) {
-                    const txt = el.innerText ? el.innerText.trim() : '';
-                    if ((txt.toLowerCase().includes('registro') || txt.toLowerCase().includes('página') || txt.toLowerCase().includes('pagina')) && txt.length < 100) {
-                        statText = txt;
-                        break;
-                    }
-                }
+            const disabled = btn.disabled || btn.hasAttribute('disabled') || btn.classList.contains('disabled');
+            const style = window.getComputedStyle(btn);
+            const opacity = parseFloat(style.opacity || '1');
+            const tem_proxima = !disabled && opacity >= 0.8;
+            
+            let pagText = '';
+            const parent = btn.parentElement;
+            if (parent) {
+                pagText = parent.innerText ? parent.innerText.trim() : '';
             }
 
             return {
-                flexiInput: pcontrolInput ? pcontrolInput.value.trim() : '',
-                flexiSpan: pcontrolSpan ? pcontrolSpan.innerText.trim() : '',
-                pageNumbers: pageNumbers,
-                hasNextLink: hasNextLink,
-                nextLinkText: nextLinkText,
-                hasFlexiNext: btnNextFlexi ? !btnNextFlexi.className.includes('pDisabled') : false,
-                statText: statText
+                existe: true,
+                tem_proxima: tem_proxima,
+                opacity: opacity,
+                info: pagText
             };
         }""")
 
-        # Determina a pagina atual
-        pag_atual = 1
-        if dados.get("flexiInput") and dados["flexiInput"].isdigit():
-            pag_atual = int(dados["flexiInput"])
-
-        # Determina o total de paginas
-        total_paginas = 1
-        if dados.get("pageNumbers"):
-            total_paginas = max(dados["pageNumbers"])
-        elif dados.get("flexiSpan"):
-            nums = re.findall(r"\d+", dados["flexiSpan"])
-            if nums:
-                total_paginas = int(nums[-1])
-        elif dados.get("statText"):
-            nums = re.findall(r"\d+", dados["statText"])
-            if len(nums) >= 3:
-                ini, fim, tot = int(nums[0]), int(nums[1]), int(nums[2])
-                por_pag = (fim - ini + 1) if (fim >= ini and ini > 0) else 20
-                if tot > 0 and por_pag > 0:
-                    total_paginas = math.ceil(tot / por_pag)
-
-        # Determina se existe proxima pagina
-        tem_proxima = dados.get("hasNextLink") or dados.get("hasFlexiNext")
-        if not tem_proxima and dados.get("pageNumbers"):
-            if any(p > pag_atual for p in dados["pageNumbers"]):
-                tem_proxima = True
-
-        log_msg(f"[PAGINACAO] Pagina atual: {pag_atual} | Total estimado: {total_paginas} | Proxima disponivel: {tem_proxima} (Links: {dados.get('pageNumbers')} | Next: '{dados.get('nextLinkText')}' | Info: '{dados.get('statText')}')")
+        log_msg(f"[PAGINACAO PABX] Botao Proxima: existe={dados.get('existe')}, ativa={dados.get('tem_proxima')} (opacity: {dados.get('opacity')}, info: '{dados.get('info')}')")
         return {
-            "pagina_atual": pag_atual,
-            "total_paginas": max(1, total_paginas),
-            "tem_proxima": tem_proxima
+            "tem_proxima": dados.get("tem_proxima", False),
+            "pagina_atual": 1,
+            "total_paginas": 2 if dados.get("tem_proxima") else 1
         }
     except Exception as e:
-        log_msg(f"Aviso ao obter informacoes de paginacao: {e}")
-        return {"pagina_atual": 1, "total_paginas": 1, "tem_proxima": True}
+        log_msg(f"Aviso ao inspecionar paginacao: {e}")
+        return {"tem_proxima": False, "pagina_atual": 1, "total_paginas": 1}
 
-def aguardar_mudanca_pagina(ctx, proxima, texto_linha_antes, timeout=15):
+def avancar_proxima_pagina(ctx, pagina_atual):
+    """
+    Aciona o botao oficial de proxima pagina do PABX:
+    <button class="bot-next pagination-next" type="button" onclick="resultset_next()" style="opacity: 1;"></button>
+    utilizando exclusivamente classes CSS (.bot-next.pagination-next) e o evento onclick (resultset_next),
+    sem depender do atributo title. Aguarda a substituicao segura das linhas da tabela.
+    """
+    proxima = pagina_atual + 1
+    log_msg(f"-> Acionando avanco para a pagina {proxima} via button.bot-next.pagination-next / resultset_next()...")
+
+    linhas_antes = obter_linhas_tabela(ctx)
+    texto_linha_antes = linhas_antes[0].inner_text().strip() if linhas_antes else ""
+
+    # Verifica se o botao esta habilitado
+    info = obter_info_paginacao(ctx)
+    if not info.get("tem_proxima"):
+        log_msg(f"-> Botao de proxima pagina desabilitado (opacity < 0.8 ou disabled). Fim das paginas.")
+        return False
+
+    # Dispara o clique no botao usando seletores estritos de classe e onclick
+    clicou = False
+    btn = ctx.locator("button.bot-next.pagination-next, button.pagination-next, button.bot-next, button[onclick*='resultset_next'], [onclick*='resultset_next']").first
+    if btn.count() > 0:
+        try:
+            btn.scroll_into_view_if_needed()
+            btn.click(force=True)
+            clicou = True
+            log_msg("-> Clique Playwright efetuado em button.bot-next.pagination-next.")
+        except Exception as e:
+            log_msg(f"Aviso no clique Playwright: {e}")
+
+    if not clicou:
+        log_msg("-> Disparando resultset_next() via evaluate JS...")
+        ctx.evaluate("""() => {
+            if (typeof resultset_next === 'function') {
+                resultset_next();
+            } else {
+                const b = document.querySelector('button.bot-next.pagination-next, button.pagination-next, button.bot-next, button[onclick*="resultset_next"], [onclick*="resultset_next"]');
+                if (b) b.click();
+            }
+        }""")
+
+    # Aguarda a tabela atualizar de forma resiliente
     inicio = time.time()
-    ctx.wait_for_timeout(1000)
+    ctx.wait_for_timeout(1200)
 
     for loader in [".pReload.loading", ".gBlock", ".loading", "#loading", ".spinner"]:
         try:
@@ -371,116 +355,22 @@ def aguardar_mudanca_pagina(ctx, proxima, texto_linha_antes, timeout=15):
         except Exception:
             pass
 
-    while time.time() - inicio < timeout:
-        linhas = obter_linhas_tabela(ctx)
-        texto_novo = linhas[0].inner_text().strip() if linhas else ""
-
-        if texto_linha_antes and texto_novo and texto_novo != texto_linha_antes:
-            log_msg(f"-> Sucesso: Nova lista de chamadas carregada para a pagina {proxima} (Linha: {texto_novo[:30]}...). ")
-            ctx.wait_for_timeout(1000)
-            return True
-
-        inp = ctx.locator(".pcontrol input, input[name='page']").first
-        if inp.count() > 0:
-            val = inp.input_value().strip()
-            if val == str(proxima):
-                log_msg(f"-> Sucesso: Indicador de pagina atualizado para {proxima}.")
-                ctx.wait_for_timeout(1000)
-                return True
-
-        ctx.wait_for_timeout(500)
-
-    log_msg(f"Aviso: Timeout aguardando atualizacao dos dados para a pagina {proxima}.")
-    return False
-
-def avancar_proxima_pagina(ctx, pagina_atual):
-    """
-    Tenta avancar a pagina utilizando multiplas estrategias:
-    1. Clicar no link com o numero exato da proxima pagina (ex: <a>2</a>)
-    2. Clicar em botoes/links Proxima, Next, >, >>
-    3. Preencher input de pagina com Enter (padrao Flexigrid)
-    4. Injecao de clique via JavaScript
-    """
-    proxima = pagina_atual + 1
-    log_msg(f"-> Acionando avanco da pagina {pagina_atual} para a pagina {proxima}...")
-
-    linhas_antes = obter_linhas_tabela(ctx)
-    texto_linha_antes = linhas_antes[0].inner_text().strip() if linhas_antes else ""
-
-    # Estrategia 1: Clicar no link numerico exato da proxima pagina (ex: <a>2</a>)
-    try:
-        link_num = ctx.locator(f"a:text-is('{proxima}'), button:text-is('{proxima}')").first
-        if link_num.count() > 0 and link_num.is_visible():
-            log_msg(f"-> Clicando diretamente no link da pagina '{proxima}'...")
-            link_num.click(force=True)
-            return aguardar_mudanca_pagina(ctx, proxima, texto_linha_antes)
-    except Exception as e:
-        log_msg(f"Aviso clique link numerico {proxima}: {e}")
-
-    # Estrategia 2: Clicar no botao/link de 'Proxima', 'Next', '>', '>>'
-    seletores_next = [
-        "a:has-text('Próxima')", "a:has-text('Proxima')", "a:has-text('Seguinte')",
-        "a:has-text('Next')", "button:has-text('Próxima')", "button:has-text('Next')",
-        "a:has-text('>')", "a:has-text('>>')", "input[value*='>']",
-        ".pDiv .pNext", ".pNext", "div.pButton.pNext"
-    ]
-    for sel in seletores_next:
+    while time.time() - inicio < 20:
         try:
-            loc = ctx.locator(sel).first
-            if loc.count() > 0 and loc.is_visible():
-                classes = (loc.get_attribute("class") or "").lower()
-                if "disabled" in classes or "pdisabled" in classes:
-                    log_msg(f"-> Botao '{sel}' esta desabilitado. Fim das paginas.")
-                    return False
-                log_msg(f"-> Clicando no elemento de avanco: '{sel}'...")
-                loc.click(force=True)
-                return aguardar_mudanca_pagina(ctx, proxima, texto_linha_antes)
+            linhas_novas = obter_linhas_tabela(ctx)
+            if linhas_novas:
+                texto_novo = linhas_novas[0].inner_text().strip()
+                if texto_linha_antes and texto_novo and texto_novo != texto_linha_antes:
+                    log_msg(f"-> Sucesso: Pagina {proxima} carregada! Nova primeira chamada: {texto_novo[:35]}...")
+                    ctx.wait_for_timeout(1000)
+                    return True
         except Exception:
             pass
+        ctx.wait_for_timeout(600)
 
-    # Estrategia 3: Preenchimento de input de pagina (se existir)
-    try:
-        input_pag = ctx.locator(".pDiv .pcontrol input, .pcontrol input, input[name='page'], input[name='pagina']").first
-        if input_pag.count() > 0 and input_pag.is_visible():
-            log_msg(f"-> Preenchendo input de pagina com '{proxima}' + Enter...")
-            input_pag.click(force=True)
-            input_pag.fill(str(proxima))
-            input_pag.press("Enter")
-            return aguardar_mudanca_pagina(ctx, proxima, texto_linha_antes)
-    except Exception as e:
-        log_msg(f"Aviso preenchimento input pagina: {e}")
-
-    # Estrategia 4: Disparo via JavaScript
-    log_msg("-> Tentando disparo de avanco via JavaScript...")
-    script_js = """(targetPage) => {
-        const all = Array.from(document.querySelectorAll('a, button, input[type="button"]'));
-        for (const el of all) {
-            const t = (el.innerText || el.value || '').trim();
-            if (t === String(targetPage)) {
-                el.click();
-                return 'clicou_link_' + targetPage;
-            }
-        }
-        for (const el of all) {
-            const t = (el.innerText || el.value || '').trim().toLowerCase();
-            if (t.includes('próx') || t.includes('prox') || t.includes('next') || t === '>' || t === '>>') {
-                const c = (el.className || '').toLowerCase();
-                if (!c.includes('disabled') && !c.includes('pdisabled')) {
-                    el.click();
-                    return 'clicou_proxima';
-                }
-            }
-        }
-        return 'nada_encontrado';
-    }"""
-    res_js = ctx.evaluate(script_js, proxima)
-    log_msg(f"-> Resultado disparo JS: {res_js}")
-
-    if res_js != 'nada_encontrado':
-        return aguardar_mudanca_pagina(ctx, proxima, texto_linha_antes)
-
-    log_msg("-> Nenhum mecanismo de avanco de pagina foi encontrado na tela.")
+    log_msg(f"Aviso: Timeout aguardando novas chamadas para a pagina {proxima}.")
     return False
+
 def login_pabx(page):
     log_msg(f"Navegando para a página de login: {PBX_URL}")
     page.goto(PBX_URL, timeout=60000)
@@ -577,25 +467,40 @@ def aplicar_filtros(page, ramal_numero):
                 s.select_option(value=val)
                 break
 
-        # Tenta expandir o limite de registros do relatório para carregar o máximo possível por página
+        # 1. Inspeciona e diagnostica TODOS os campos do formulário para encontrar seletores de limite de registros
     try:
-        campos_limite = ctx.locator("select[name*='limit'], select[name*='qtd'], select[name*='rows'], select[name*='linhas'], select[name*='registros'], select[name*='display'], select[name='rp'], input[name*='limit']").all()
-        for cl in campos_limite:
-            if cl.is_visible():
-                tag = cl.evaluate("el => el.tagName")
-                nome_campo = cl.evaluate("el => el.name || el.id || 'limite'")
-                if tag == "SELECT":
-                    opts = [opt.get_attribute("value") for opt in cl.locator("option").all()]
-                    opts_num = [int(o) for o in opts if o and o.isdigit()]
-                    if opts_num:
-                        maior = str(max(opts_num))
-                        cl.select_option(value=maior)
-                        log_msg(f"[CONFIG] Select de limite '{nome_campo}' ajustado para o maximo ({maior}).")
-                elif tag == "INPUT":
-                    cl.fill("500")
-                    log_msg(f"[CONFIG] Input de limite '{nome_campo}' preenchido com 500.")
+        campos_form = ctx.evaluate("""() => {
+            return Array.from(document.querySelectorAll('input, select')).map(el => ({
+                tag: el.tagName,
+                type: el.type || '',
+                name: el.name || '',
+                id: el.id || '',
+                value: el.value || '',
+                options: el.tagName === 'SELECT' ? Array.from(el.options).map(o => ({ text: o.text.trim(), val: o.value })) : []
+            }));
+        }""")
+
+        log_msg(f"[FORM] Inspecionando {len(campos_form)} campos de formulário no PABX:")
+        for c in campos_form:
+            opts_desc = f" (Opções: {[o['val'] for o in c['options']]})" if c['options'] else ""
+            log_msg(f"  - <{c['tag']} type='{c['type']}' name='{c['name']}' id='{c['id']}' val='{c['value']}'>{opts_desc}")
+
+            # Se for um campo cujo valor é '20', ou com nome sugerindo paginação/limite
+            is_limit_field = (c['value'] == '20') or any(k in (c['name'] + ' ' + c['id']).lower() for k in ['limit', 'qtd', 'rows', 'linhas', 'registros', 'display', 'rp', 'max', 'page_size'])
+            if is_limit_field:
+                sel = f"select[name='{c['name']}']" if c['name'] else f"#{c['id']}"
+                if c['tag'] == 'SELECT' and c['options']:
+                    nums = [int(o['val']) for o in c['options'] if o['val'].isdigit()]
+                    if nums:
+                        maior_opt = str(max(nums))
+                        ctx.select_option(sel, value=maior_opt)
+                        log_msg(f"  ==> [AJUSTE AUTOMÁTICO] Select '{c['name'] or c['id']}' alterado de '{c['value']}' para o máximo: {maior_opt} registros!")
+                elif c['tag'] == 'INPUT' and c['type'] not in ['submit', 'button', 'password', 'hidden']:
+                    sel_inp = f"input[name='{c['name']}']" if c['name'] else f"#{c['id']}"
+                    ctx.fill(sel_inp, "500")
+                    log_msg(f"  ==> [AJUSTE AUTOMÁTICO] Input '{c['name'] or c['id']}' alterado de '{c['value']}' para 500 registros!")
     except Exception as e:
-        log_msg(f"Aviso ao verificar campos de limite: {e}")
+        log_msg(f"Aviso na varredura de campos de limite: {e}")
 
     log_msg(f"Disparando consulta (#confirm) para o ramal {ramal_numero} no dia {DATA_CONSULTA}...")
     ctx.click("#confirm")
@@ -763,14 +668,19 @@ def processar_chamadas(page, model_whisper):
                 })
 
             if len(linhas) == 0:
-                log_msg(f"[{nome}] Nenhuma linha encontrada na página {pagina_atual}.")
+                log_msg(f"[{nome}] Nenhuma chamada encontrada na página {pagina_atual}.")
                 break
 
-            # Tenta avançar para a próxima página
-            log_msg(f"[{nome}] Tentando avançar da página {pagina_atual} para a página {pagina_atual + 1}...")
+            # Verifica se há próxima página ativa no PABX
+            info_pag = obter_info_paginacao(ctx)
+            if not info_pag.get("tem_proxima"):
+                log_msg(f"[{nome}] Botão de próxima página desabilitado no PABX. Fim das páginas.")
+                break
+
+            log_msg(f"[{nome}] Avançando da página {pagina_atual} para a página {pagina_atual + 1}...")
             avancou = avancar_proxima_pagina(ctx, pagina_atual)
             if not avancou:
-                log_msg(f"[{nome}] Fim da paginação após página {pagina_atual} (não há mais páginas a avançar).")
+                log_msg(f"[{nome}] Fim da paginação após página {pagina_atual}.")
                 break
 
             pagina_atual += 1
