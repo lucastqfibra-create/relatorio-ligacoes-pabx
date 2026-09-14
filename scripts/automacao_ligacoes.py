@@ -96,6 +96,26 @@ def obter_contexto_registros(page, timeout=30000):
   )
 
 
+def obter_linhas_tabela(ctx):
+  """Retorna as linhas reais da tabela de registros dentro de .bDiv."""
+  seletores = [
+      ".bDiv tbody tr",
+      ".bDiv tr",
+      "tr[id^='row']",
+      "tr[id^='tr_']",
+      "table tbody tr",
+  ]
+  for sel in seletores:
+    loc = ctx.locator(sel)
+    qtd = loc.count()
+    if qtd > 0:
+      if loc.first.locator("td").count() >= 5:
+        print(f"[GRID] {qtd} chamadas detectadas pelo seletor '{sel}'.")
+        return loc.all()
+  print("[GRID] Nenhuma linha de chamada encontrada com os seletores testados.")
+  return []
+
+
 def obter_info_paginacao(ctx):
   try:
     dados = ctx.evaluate("""() => {
@@ -136,13 +156,15 @@ def avancar_proxima_pagina_flexigrid(ctx, pagina_atual):
       f" {proxima}..."
   )
 
-  primeira_linha = ctx.locator("tr[id^='tr_']").first
-  id_anterior = (
-      primeira_linha.get_attribute("id") if primeira_linha.count() > 0 else ""
+  linhas_antes = obter_linhas_tabela(ctx)
+  texto_linha_anterior = (
+      linhas_antes[0].inner_text().strip() if len(linhas_antes) > 0 else ""
   )
 
   clicou = False
-  btn_next = ctx.locator(".pDiv .pNext, .pNext, div.pButton.pNext").first
+  btn_next = ctx.locator(
+      ".pDiv .pNext, .pNext, div.pButton.pNext, a.pNext"
+  ).first
   if btn_next.count() > 0 and btn_next.is_visible():
     try:
       btn_next.click(force=True)
@@ -162,8 +184,7 @@ def avancar_proxima_pagina_flexigrid(ctx, pagina_atual):
 
   try:
     ctx.wait_for_function(
-        """({ targetPage, oldRowId }) => {
-                const tr = document.querySelector("tr[id^='tr_']");
+        """({ targetPage, oldRowText }) => {
                 const reload = document.querySelector('.pReload');
                 const estaCarregando = reload && reload.classList.contains('loading');
                 
@@ -178,10 +199,12 @@ def avancar_proxima_pagina_flexigrid(ctx, pagina_atual):
                     }
                 }
                 
-                const linhaMudou = oldRowId ? (tr && tr.id !== oldRowId) : true;
+                const primeiraLinha = document.querySelector('.bDiv tbody tr, .bDiv tr, table tbody tr');
+                const linhaMudou = oldRowText ? (primeiraLinha && primeiraLinha.innerText.trim() !== oldRowText) : true;
+                
                 return (paginaMudou || linhaMudou) && !estaCarregando;
             }""",
-        {"targetPage": proxima, "oldRowId": id_anterior},
+        {"targetPage": proxima, "oldRowText": texto_linha_anterior},
         timeout=15000,
     )
     print(f"-> Sucesso: Página {proxima} confirmada no DOM.")
@@ -257,7 +280,6 @@ def aplicar_filtros(page, ramal_numero):
 
   ctx = obter_contexto_registros(page)
 
-  # Preenchimento de datas
   for sel in [
       "#calldate_day_start",
       "#calldate_start",
@@ -272,7 +294,6 @@ def aplicar_filtros(page, ramal_numero):
       ctx.locator(sel).fill(DATA_CONSULTA)
       break
 
-  # Preenchimento de horários (dia completo até 23:59)
   for h_fim in ctx.locator(
       "select[name*='hour_end'], select[name*='hora_fim'],"
       " #calldate_hour_end"
@@ -343,16 +364,15 @@ def processar_chamadas(page, model_whisper):
       info_pag = obter_info_paginacao(ctx)
       total_paginas = info_pag["total_paginas"]
 
-      linhas = ctx.locator("tr[id^='tr_']").all()
+      linhas = obter_linhas_tabela(ctx)
 
       print(
           f"\n--- [{nome}] Processando Página {pagina_atual} de {total_paginas}"
-          f" ({len(linhas)} chamadas na tabela) ---"
+          f" ({len(linhas)} chamadas detectadas) ---"
       )
 
       for idx, linha in enumerate(linhas, start=1):
         tds = linha.locator("td").all()
-        # A tabela possui 9 colunas no total. Ignora apenas linhas vazias (< 5)
         if len(tds) < 5:
           continue
 
@@ -362,7 +382,6 @@ def processar_chamadas(page, model_whisper):
         destino = tds.inner_text().strip()
         status = tds.inner_text().strip()
 
-        # O ícone de áudio fica na última coluna (coluna 9 / tds[-1])
         coluna_audio = tds[-1]
         icone_audio = coluna_audio.locator("a > img, img")
 
@@ -374,7 +393,6 @@ def processar_chamadas(page, model_whisper):
         caminho_gsm = os.path.join(AUDIO_DIR, f"{arquivo_base}.gsm")
         caminho_wav = os.path.join(AUDIO_DIR, f"{arquivo_base}.wav")
 
-        # Só tenta baixar se houver ícone de áudio e a duração não for 00:00:00
         if (
             icone_audio.count() > 0
             and icone_audio.first.is_visible()
@@ -383,9 +401,12 @@ def processar_chamadas(page, model_whisper):
           try:
             icone_audio.first.click()
             ctx.wait_for_timeout(500)
-            btn_salvar = coluna_audio.locator(
-                "div img, img[alt*='Salvar'], img[title*='Salvar'], img"
+            btn_salvar = ctx.locator(
+                "img[alt*='Salvar'], img[title*='Salvar'], img[src*='save'],"
+                " img[src*='disk']"
             ).first
+            if not btn_salvar.is_visible():
+              btn_salvar = coluna_audio.locator("div img, img").last
 
             with page.expect_download(timeout=15000) as download_info:
               btn_salvar.click()
