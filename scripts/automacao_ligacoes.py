@@ -201,82 +201,188 @@ def obter_linhas_tabela(ctx):
     return []
 
 def obter_info_paginacao(ctx):
+    """
+    Identifica com precisao a pagina atual, o total de paginas e se existe proxima pagina
+    inspecionando os seletores nativos do Flexigrid (.pcontrol input, .pcontrol span, .pPageStat e classe .pDisabled).
+    """
     try:
         dados = ctx.evaluate("""() => {
-            let pagAtual = 1;
-            let totalPags = 1;
-            let textoEncontrado = '';
+            const pDiv = document.querySelector('.pDiv');
+            const pcontrol = document.querySelector('.pDiv .pcontrol, .pcontrol');
+            const pcontrolSpan = document.querySelector('.pDiv .pcontrol span, .pcontrol span');
+            const pcontrolInput = document.querySelector('.pDiv .pcontrol input, .pcontrol input, input[name="page"]');
+            const pagestat = document.querySelector('.pDiv .pPageStat, .pPageStat');
+            const btnNext = document.querySelector('.pDiv .pNext, .pNext');
+            const selectRp = document.querySelector('.pDiv select[name="rp"], select[name="rp"]');
 
-            const elementos = Array.from(document.querySelectorAll('.pDiv, .pGroup, .pcontrol, div, span, b, td'));
-            for (const el of elementos) {
-                const txt = el.innerText ? el.innerText.trim() : '';
-                const m = txt.match(/^(\\d+)\\s*\\/\\s*(\\d+)$/);
-                if (m) {
-                    const [matchFull, pAtual, pTotal] = m;
-                    pagAtual = parseInt(pAtual, 10);
-                    totalPags = parseInt(pTotal, 10);
-                    textoEncontrado = txt;
-                    break;
+            let temProxima = true;
+            if (btnNext) {
+                const classes = btnNext.className || '';
+                if (classes.includes('pDisabled') || classes.includes('disabled') || btnNext.hasAttribute('disabled')) {
+                    temProxima = false;
                 }
+            } else {
+                temProxima = false;
             }
-            return { pagina_atual: pagAtual, total_paginas: totalPags, texto: textoEncontrado };
+
+            let gridP = null;
+            const tbl = document.querySelector('.flexigrid .bDiv table, table.flexme');
+            if (tbl && tbl.p) {
+                gridP = { page: tbl.p.page, pages: tbl.p.pages, total: tbl.p.total };
+            }
+
+            return {
+                input_val: pcontrolInput ? (pcontrolInput.value || '').trim() : '',
+                span_text: pcontrolSpan ? (pcontrolSpan.innerText || '').trim() : '',
+                pcontrol_text: pcontrol ? (pcontrol.innerText || '').trim() : '',
+                pagestat_text: pagestat ? (pagestat.innerText || '').trim() : '',
+                tem_proxima: temProxima,
+                grid_p: gridP
+            };
         }""")
 
-        pag_atual = dados.get("pagina_atual", 1)
-        tot_pags = dados.get("total_paginas", 1)
-        log_msg(f"[PAGINAÇÃO] Página {pag_atual} de {tot_pags} (Indicador: '{dados.get('texto', '')}')")
-        return {"pagina_atual": pag_atual, "total_paginas": tot_pags}
+        grid_p = dados.get("grid_p") or {}
+        input_val = dados.get("input_val", "")
+
+        # Pagina atual
+        if grid_p.get("page"):
+            pagina_atual = int(grid_p["page"])
+        elif input_val and input_val.isdigit():
+            pagina_atual = int(input_val)
+        else:
+            pagina_atual = 1
+
+        # Total de paginas
+        total_paginas = 1
+        if grid_p.get("pages"):
+            total_paginas = int(grid_p["pages"])
+        else:
+            # 1. Tenta extrair do span interno do pcontrol (ex: 'de 3' ou '3')
+            span_txt = dados.get("span_text", "")
+            m_span = re.findall(r"\d+", span_txt)
+            if m_span:
+                total_paginas = int(m_span[-1])
+            else:
+                # 2. Tenta do texto completo do pcontrol (ex: 'Pagina 1 de 4')
+                m_ctrl = re.findall(r"\d+", dados.get("pcontrol_text", ""))
+                if len(m_ctrl) >= 2:
+                    total_paginas = int(m_ctrl[-1])
+                elif len(m_ctrl) == 1 and int(m_ctrl[0]) > pagina_atual:
+                    total_paginas = int(m_ctrl[0])
+                else:
+                    # 3. Tenta do pPageStat (ex: 'Exibindo de 1 a 15 de 54 registros')
+                    m_stat = re.findall(r"\d+", dados.get("pagestat_text", ""))
+                    if len(m_stat) >= 3:
+                        ini = int(m_stat[0])
+                        fim = int(m_stat[1])
+                        tot = int(m_stat[2])
+                        por_pag = (fim - ini + 1) if (fim >= ini and ini > 0) else 15
+                        if tot > 0 and por_pag > 0:
+                            total_paginas = math.ceil(tot / por_pag)
+
+        total_paginas = max(1, total_paginas)
+        tem_proxima = dados.get("tem_proxima", True)
+
+        if total_paginas > 1 and pagina_atual >= total_paginas:
+            tem_proxima = False
+
+        log_msg(f"[PAGINACAO] Pagina {pagina_atual} de {total_paginas} (Proxima disponivel: {tem_proxima} | Input: '{input_val}' | Span: '{dados.get('span_text')}' | Stat: '{dados.get('pagestat_text')}')")
+        return {
+            "pagina_atual": pagina_atual,
+            "total_paginas": total_paginas,
+            "tem_proxima": tem_proxima
+        }
     except Exception as e:
-        log_msg(f"Aviso ao ler paginação: {e}")
-        return {"pagina_atual": 1, "total_paginas": 1}
+        log_msg(f"Aviso ao ler paginacao: {e}")
+        return {"pagina_atual": 1, "total_paginas": 1, "tem_proxima": False}
 
 def avancar_proxima_pagina_flexigrid(ctx, pagina_atual):
+    """
+    Avanca para a proxima pagina do Flexigrid utilizando multiplos gatilhos:
+    1. Clique no botao .pNext (ou div.pNext)
+    2. Preenchimento do input de pagina com Enter (gatilho nativo do Flexigrid)
+    3. Disparo via JavaScript / jQuery
+    Aguarda confirmacao por alteracao das linhas da tabela ou atualizacao do input.
+    """
     proxima = pagina_atual + 1
-    log_msg(f"-> Acionando avanço da página {pagina_atual} para a página {proxima}...")
+    log_msg(f"-> Acionando avanco da pagina {pagina_atual} para a pagina {proxima}...")
 
-    # Clica no botão .pNext (a seta '>' de avançar)
+    linhas_antes = obter_linhas_tabela(ctx)
+    texto_linha_antes = linhas_antes[0].inner_text().strip() if linhas_antes else ""
+
+    # Verifica se .pNext esta com classe .pDisabled
+    btn_disabled = ctx.locator(".pDiv .pNext.pDisabled, .pNext.pDisabled, .pDiv .pNext[disabled]")
+    if btn_disabled.count() > 0:
+        log_msg("-> Botao .pNext possui classe .pDisabled. Fim das paginas atingido.")
+        return False
+
+    # Gatilho 1: Clique no botao .pNext
     btn_next = ctx.locator(".pDiv .pNext, .pNext, div.pButton.pNext, a.pNext").first
-    if btn_next.count() > 0:
+    if btn_next.count() > 0 and btn_next.is_visible():
         try:
             btn_next.click(force=True)
+            log_msg("-> Clique Playwright efetuado no .pNext.")
         except Exception as e:
             log_msg(f"Clique Playwright no .pNext: {e}")
 
-    ctx.evaluate("""() => {
-        if (window.jQuery && window.jQuery('.pNext').length) {
-            window.jQuery('.pNext').click();
-        }
-    }""")
-
-    # Aguarda a página atualizar no DOM
+    # Gatilho 2: Input de pagina com Enter (nativo do Flexigrid)
     try:
-        expr = (
-            """() => {
-            const reload = document.querySelector('.pReload');
-            const estaCarregando = reload && reload.classList.contains('loading');
-            
-            let paginaMudou = false;
-            const els = Array.from(document.querySelectorAll('.pDiv, .pGroup, .pcontrol, div, span, b, td'));
-            for (const el of els) {
-                const txt = el.innerText ? el.innerText.trim() : '';
-                const m = txt.match(/^(\\d+)\\s*\\/\\s*(\\d+)$/);
-                if (m) {
-                    const [matchFull, pAtual, pTotal] = m;
-                    if (parseInt(pAtual, 10) === """ + str(proxima) + """) {
-                        paginaMudou = true;
-                        break;
-                    }
-                }
-            }
-            return paginaMudou && !estaCarregando;
-        }"""
-        )
-        ctx.wait_for_function(expr, timeout=15000)
-        log_msg(f"-> Sucesso: Página {proxima} confirmada no DOM.")
-        ctx.wait_for_timeout(1500)
-        return True
+        input_pag = ctx.locator(".pDiv .pcontrol input, .pcontrol input").first
+        if input_pag.count() > 0 and input_pag.is_visible():
+            input_pag.click(force=True)
+            input_pag.fill(str(proxima))
+            input_pag.press("Enter")
+            log_msg(f"-> Inserido valor '{proxima}' no input da pagina com Enter.")
     except Exception as e:
-        log_msg(f"Aviso: Não foi possível confirmar a transição para a página {proxima} ({e}).")
+        log_msg(f"Aviso ao preencher input de pagina: {e}")
+
+    # Gatilho 3: Disparo via JavaScript / jQuery
+    ctx.evaluate(f"""() => {{
+        if (window.jQuery) {{
+            const  = window.jQuery('.pDiv .pNext, .pNext');
+            if (.length && !.hasClass('pDisabled')) {{
+                .click();
+            }}
+        }}
+        const inp = document.querySelector('.pDiv .pcontrol input, .pcontrol input');
+        if (inp && parseInt(inp.value, 10) !== {proxima}) {{
+            inp.value = '{proxima}';
+            const evt = new KeyboardEvent('keydown', {{ bubbles: true, cancelable: true, keyCode: 13, which: 13 }});
+            inp.dispatchEvent(evt);
+        }}
+    }}""")
+
+    # Aguarda atualizacao do grid
+    try:
+        ctx.wait_for_timeout(800)
+
+        try:
+            ctx.locator(".pReload.loading, .gBlock").wait_for(state="detached", timeout=12000)
+        except Exception:
+            pass
+
+        inicio_espera = time.time()
+        while time.time() - inicio_espera < 15:
+            info_agora = obter_info_paginacao(ctx)
+            linhas_agora = obter_linhas_tabela(ctx)
+            texto_linha_agora = linhas_agora[0].inner_text().strip() if linhas_agora else ""
+
+            if info_agora["pagina_atual"] == proxima:
+                log_msg(f"-> Sucesso: Pagina {proxima} confirmada no indicador de pagina.")
+                ctx.wait_for_timeout(1000)
+                return True
+
+            if texto_linha_antes and texto_linha_agora and texto_linha_agora != texto_linha_antes:
+                log_msg(f"-> Sucesso: Nova lista de chamadas carregada para a pagina {proxima}.")
+                ctx.wait_for_timeout(1000)
+                return True
+
+            ctx.wait_for_timeout(500)
+
+        log_msg(f"Aviso: Nao foi possivel confirmar a transicao para a pagina {proxima} no tempo limite.")
+        return False
+    except Exception as e:
+        log_msg(f"Erro ao aguardar transicao para a pagina {proxima}: {e}")
         return False
 
 def login_pabx(page):
@@ -540,6 +646,10 @@ def processar_chamadas(page, model_whisper):
                     "Transcrição": transcricao,
                     "Arquivo Áudio": f"{arquivo_base}.wav" if os.path.exists(caminho_wav) else "N/A"
                 })
+
+            if not info_pag.get("tem_proxima", True):
+                log_msg(f"[{nome}] Concluído: botão .pNext desabilitado (.pDisabled). Fim das páginas.")
+                break
 
             if total_paginas > 1 and pagina_atual >= total_paginas:
                 log_msg(f"[{nome}] Concluído: todas as {total_paginas} páginas foram processadas.")
