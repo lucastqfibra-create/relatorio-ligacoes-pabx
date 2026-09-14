@@ -35,17 +35,23 @@ RAMAIS = [
 ]
 
 
-def obter_ultimo_dia_util():
-  """Retorna a data do último dia útil no formato DD/MM/YYYY."""
+def definir_data_consulta():
+  # Permite forçar uma data específica via variável de ambiente (ex: "12/09/2026")
+  data_env = os.getenv("DATA_MANUAL", "").strip()
+  if data_env:
+    print(f"[CONFIG] Utilizando data manual informada via env: {data_env}")
+    return data_env
+
+  # Padrão: retrocede fins de semana para a última sexta-feira
   data = datetime.now() - timedelta(days=1)
   while data.weekday() in (5, 6):  # 5 = Sábado, 6 = Domingo
     data -= timedelta(days=1)
-  return data.strftime("%d/%m/%Y")
+  data_calculada = data.strftime("%d/%m/%Y")
+  print(f"[CONFIG] Data do último dia útil calculada: {data_calculada}")
+  return data_calculada
 
 
-DATA_CONSULTA = obter_ultimo_dia_util()
-
-# Token correto do módulo: report.calls.detailed
+DATA_CONSULTA = definir_data_consulta()
 URL_CONTAINER = f"{PBX_URL}/pbxip/framework/container.php?token=MAIN/cmVwb3J0LmNhbGxzLmRldGFpbGVk"
 
 OUTPUT_DIR = "ligacoes"
@@ -139,7 +145,7 @@ def obter_info_paginacao(ctx):
 
     print(
         f"[PAGINAÇÃO] Página Atual: {pagina_atual} | Total Páginas:"
-        f" {total_paginas}"
+        f" {total_paginas} | Status: {dados.get('pagestat_text', '')}"
     )
     return {"pagina_atual": pagina_atual, "total_paginas": total_paginas}
   except Exception as e:
@@ -254,7 +260,7 @@ def login_pabx(page):
             " #user, #login"
         ).first
         ctx_login = frame
-        print(f"Formulário de login localizado dentro do frame: {frame.name}")
+        print(f"Formulário de login localizado no frame: {frame.name}")
         break
 
   if not campo_senha:
@@ -291,35 +297,91 @@ def aplicar_filtros(page, ramal_numero):
 
   ctx = obter_contexto_registros(page)
 
-  if ctx.locator("#calldate_day_start").is_visible():
-    ctx.locator("#calldate_day_start").fill(DATA_CONSULTA)
-  if ctx.locator("#calldate_day_end").is_visible():
-    ctx.locator("#calldate_day_end").fill(DATA_CONSULTA)
+  # 1. Preenchimento de Datas
+  for sel_data in [
+      "#calldate_day_start",
+      "#calldate_start",
+      "input[name*='date_start']",
+      "input[name*='calldate_start']",
+  ]:
+    if ctx.locator(sel_data).count() > 0 and ctx.locator(sel_data).is_visible():
+      ctx.locator(sel_data).fill(DATA_CONSULTA)
+      break
 
+  for sel_data in [
+      "#calldate_day_end",
+      "#calldate_end",
+      "input[name*='date_end']",
+      "input[name*='calldate_end']",
+  ]:
+    if ctx.locator(sel_data).count() > 0 and ctx.locator(sel_data).is_visible():
+      ctx.locator(sel_data).fill(DATA_CONSULTA)
+      break
+
+  # 2. Preenchimento de Horário (Garante o dia completo até 23:59:59)
+  for h_fim in ctx.locator(
+      "select[name*='hour_end'], select[name*='hora_fim'],"
+      " #calldate_hour_end"
+  ).all():
+    for opt in h_fim.locator("option").all():
+      if opt.inner_text().strip() == "23":
+        h_fim.select_option(value=opt.get_attribute("value"))
+        break
+
+  for m_fim in ctx.locator(
+      "select[name*='minute_end'], select[name*='minuto_fim'],"
+      " #calldate_minute_end"
+  ).all():
+    for opt in m_fim.locator("option").all():
+      if opt.inner_text().strip() in ["59", "55"]:
+        m_fim.select_option(value=opt.get_attribute("value"))
+        break
+
+  # 3. Preenchimento do Ramal (Origem)
   ctx.fill("#src", ramal_numero)
 
+  # 4. Seleção de Tipo e Status com correspondência flexível
   for s in ctx.locator("select").all():
     for opt in s.locator("option").all():
       txt = opt.inner_text().strip().lower()
       val = opt.get_attribute("value")
-      if txt in ["saínte", "sainte", "saída", "saida"]:
+
+      # Tipo Saínte
+      if any(termo in txt for termo in ["saínt", "saint", "saíd", "said"]):
         s.select_option(value=val)
+        print(f"Filtro Tipo ajustado para: '{opt.inner_text().strip()}'")
         break
-      elif txt in ["atendida", "atendidas"]:
+      # Status Atendida
+      elif any(termo in txt for termo in ["atendid", "answered"]):
         s.select_option(value=val)
+        print(f"Filtro Status ajustado para: '{opt.inner_text().strip()}'")
         break
 
-  print("Disparando consulta (#confirm)...")
+  # 5. Disparo da Consulta
+  print(f"Disparando consulta (#confirm) para o dia {DATA_CONSULTA}...")
   ctx.click("#confirm")
-  page.wait_for_timeout(4000)
 
+  # Aguarda o carregamento assíncrono do Flexigrid ser concluído
   try:
-    ctx.wait_for_selector(
-        "tr[id^='tr_'], .pDiv .pcontrol, .pcontrol", timeout=15000
-    )
+    # Aguarda o indicador .loading aparecer e sumir
+    page.wait_for_timeout(1000)
+    ctx.locator(".pReload.loading").wait_for(state="detached", timeout=20000)
+    ctx.locator(".gBlock").wait_for(state="detached", timeout=20000)
   except Exception:
     pass
-  page.wait_for_timeout(1000)
+
+  page.wait_for_timeout(2000)
+
+  # Tira um screenshot do resultado da consulta para auditoria nos Artifacts
+  screenshot_resultado = os.path.join(
+      OUTPUT_DIR, f"consulta_{ramal_numero}.png"
+  )
+  try:
+    page.screenshot(path=screenshot_resultado)
+    print(f"Screenshot da consulta salvo em: {screenshot_resultado}")
+  except Exception:
+    pass
+
   return ctx
 
 
@@ -340,15 +402,11 @@ def processar_chamadas(page, model_whisper):
       info_pag = obter_info_paginacao(ctx)
       total_paginas = info_pag["total_paginas"]
 
-      try:
-        ctx.wait_for_selector("tr[id^='tr_']", timeout=8000)
-        linhas = ctx.locator("tr[id^='tr_']").all()
-      except Exception:
-        linhas = []
+      linhas = ctx.locator("tr[id^='tr_']").all()
 
       print(
           f"\n--- [{nome}] Processando Página {pagina_atual} de {total_paginas}"
-          f" ({len(linhas)} chamadas) ---"
+          f" ({len(linhas)} chamadas detectadas) ---"
       )
 
       for idx, linha in enumerate(linhas, start=1):
@@ -415,6 +473,10 @@ def processar_chamadas(page, model_whisper):
             f"[{nome}] Concluído: todas as {total_paginas} páginas foram"
             " processadas."
         )
+        break
+
+      if len(linhas) == 0:
+        print(f"[{nome}] Nenhuma linha encontrada na página {pagina_atual}.")
         break
 
       avancou = avancar_proxima_pagina_flexigrid(ctx, pagina_atual)
