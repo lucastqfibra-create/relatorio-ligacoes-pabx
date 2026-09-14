@@ -128,8 +128,9 @@ def obter_info_paginacao(ctx):
                 const txt = el.innerText ? el.innerText.trim() : '';
                 const m = txt.match(/^(\\d+)\\s*\\/\\s*(\\d+)$/);
                 if (m) {
-                    pagAtual = parseInt(m, 10);
-                    totalPags = parseInt(m, 10);
+                    const [matchFull, pAtual, pTotal] = m;
+                    pagAtual = parseInt(pAtual, 10);
+                    totalPags = parseInt(pTotal, 10);
                     textoEncontrado = txt;
                     break;
                 }
@@ -158,7 +159,7 @@ def avancar_proxima_pagina_flexigrid(ctx, pagina_atual):
 
   linhas_antes = obter_linhas_tabela(ctx)
   texto_linha_anterior = (
-      linhas_antes[0].inner_text().strip() if len(linhas_antes) > 0 else ""
+      next(iter(linhas_antes)).inner_text().strip() if linhas_antes else ""
   )
 
   clicou = False
@@ -193,9 +194,12 @@ def avancar_proxima_pagina_flexigrid(ctx, pagina_atual):
                 for (const el of els) {
                     const txt = el.innerText ? el.innerText.trim() : '';
                     const m = txt.match(/^(\\d+)\\s*\\/\\s*(\\d+)$/);
-                    if (m && parseInt(m, 10) === targetPage) {
-                        paginaMudou = true;
-                        break;
+                    if (m) {
+                        const [matchFull, pAtual, pTotal] = m;
+                        if (parseInt(pAtual, 10) === targetPage) {
+                            paginaMudou = true;
+                            break;
+                        }
                     }
                 }
                 
@@ -376,11 +380,12 @@ def processar_chamadas(page, model_whisper):
         if len(tds) < 5:
           continue
 
-        data_hora = tds[0].inner_text().strip()
-        duracao = tds.inner_text().strip()
-        origem = tds.inner_text().strip()
-        destino = tds.inner_text().strip()
-        status = tds.inner_text().strip()
+        col_data, col_duracao, col_origem, col_destino, col_status = tds[0:5]
+        data_hora = col_data.inner_text().strip()
+        duracao = col_duracao.inner_text().strip()
+        origem = col_origem.inner_text().strip()
+        destino = col_destino.inner_text().strip()
+        status = col_status.inner_text().strip()
 
         coluna_audio = tds[-1]
         icone_audio = coluna_audio.locator("a > img, img")
