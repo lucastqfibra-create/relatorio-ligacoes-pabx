@@ -129,16 +129,13 @@ def obter_contexto_registros(page, timeout=30000):
 
 
 def obter_linhas_tabela(ctx):
-  """Identifica as linhas reais de chamadas filtrando pelo padrão 'DD/MM HH:MM'."""
+  """Identifica as linhas reais de chamadas filtrando pelo padrão de data e hora 'DD/MM HH:MM'."""
   loc = ctx.locator("tr").filter(
       has_text=re.compile(r"\d{2}/\d{2}\s+\d{2}:\d{2}")
   )
   qtd = loc.count()
   if qtd > 0:
-    log_msg(
-        f"[GRID] {qtd} chamadas confirmadas na tabela (via padrão"
-        " 'DD/MM HH:MM')."
-    )
+    log_msg(f"[GRID] {qtd} chamadas confirmadas na tabela.")
     return loc.all()
 
   log_msg("[GRID] Nenhuma linha de chamada encontrada na tela.")
@@ -185,63 +182,48 @@ def avancar_proxima_pagina_flexigrid(ctx, pagina_atual):
       f"-> Acionando avanço da página {pagina_atual} para a página {proxima}..."
   )
 
-  linhas_antes = obter_linhas_tabela(ctx)
-  texto_linha_anterior = (
-      next(iter(linhas_antes)).inner_text().strip() if linhas_antes else ""
-  )
-
-  clicou = False
   btn_next = ctx.locator(
       ".pDiv .pNext, .pNext, div.pButton.pNext, a.pNext"
   ).first
-  if btn_next.count() > 0 and btn_next.is_visible():
+  if btn_next.count() > 0:
     try:
       btn_next.click(force=True)
-      clicou = True
     except Exception as e:
       log_msg(f"Clique Playwright no .pNext: {e}")
 
-  if not clicou:
-    ctx.evaluate("""() => {
-            if (window.jQuery && window.jQuery('.pNext').length) {
-                window.jQuery('.pNext').click();
-            } else {
-                const el = document.querySelector('.pNext');
-                if (el) el.click();
-            }
-        }""")
+  ctx.evaluate("""() => {
+        if (window.jQuery && window.jQuery('.pNext').length) {
+            window.jQuery('.pNext').click();
+        }
+    }""")
 
   try:
-    ctx.wait_for_function(
-        """({ targetPage, oldRowText }) => {
-                const reload = document.querySelector('.pReload');
-                const estaCarregando = reload && reload.classList.contains('loading');
-                
-                let paginaMudou = false;
-                const els = Array.from(document.querySelectorAll('.pDiv, .pGroup, .pcontrol, div, span, b, td'));
-                for (const el of els) {
-                    const txt = el.innerText ? el.innerText.trim() : '';
-                    const m = txt.match(/^(\\d+)\\s*\\/\\s*(\\d+)$/);
-                    if (m) {
-                        const [matchFull, pAtual, pTotal] = m;
-                        if (parseInt(pAtual, 10) === targetPage) {
-                            paginaMudou = true;
-                            break;
-                        }
+    expr = (
+        """() => {
+            const reload = document.querySelector('.pReload');
+            const estaCarregando = reload && reload.classList.contains('loading');
+            
+            let paginaMudou = false;
+            const els = Array.from(document.querySelectorAll('.pDiv, .pGroup, .pcontrol, div, span, b, td'));
+            for (const el of els) {
+                const txt = el.innerText ? el.innerText.trim() : '';
+                const m = txt.match(/^(\\d+)\\s*\\/\\s*(\\d+)$/);
+                if (m) {
+                    const [matchFull, pAtual, pTotal] = m;
+                    if (parseInt(pAtual, 10) === """
+        + str(proxima)
+        + """) {
+                        paginaMudou = true;
+                        break;
                     }
                 }
-                
-                const primeiraLinha = document.querySelector('tr td');
-                const trPai = primeiraLinha ? primeiraLinha.closest('tr') : null;
-                const linhaMudou = oldRowText ? (trPai && trPai.innerText.trim() !== oldRowText) : true;
-                
-                return (paginaMudou || linhaMudou) && !estaCarregando;
-            }""",
-        {"targetPage": proxima, "oldRowText": texto_linha_anterior},
-        timeout=15000,
+            }
+            return paginaMudou && !estaCarregando;
+        }"""
     )
+    ctx.wait_for_function(expr, timeout=15000)
     log_msg(f"-> Sucesso: Página {proxima} confirmada no DOM.")
-    ctx.wait_for_timeout(1000)
+    ctx.wait_for_timeout(1500)
     return True
   except Exception as e:
     log_msg(
@@ -420,7 +402,6 @@ def processar_chamadas(page, model_whisper):
         if len(tds) < 5:
           continue
 
-        # Encontra dinamicamente em qual coluna está a data
         idx_data = -1
         for i, td in enumerate(tds):
           if re.search(r"\d{2}/\d{2}\s+\d{2}:\d{2}", td.inner_text().strip()):
@@ -459,36 +440,45 @@ def processar_chamadas(page, model_whisper):
         if tem_icone and duracao != "00:00:00":
           try:
             log_msg(f"[{nome} #{idx}] Abrindo balão de áudio ({duracao})...")
+            linha.scroll_into_view_if_needed()
+
             if link_audio.count() > 0:
               link_audio.click(force=True)
             else:
               img_audio.click(force=True)
 
-            ctx.wait_for_timeout(800)
+            ctx.wait_for_timeout(600)
 
-            # Busca o botão de salvar
-            btn_salvar = ctx.locator(
-                "img[alt*='alvar'], img[title*='alvar'], a[title*='alvar'],"
-                " a[href*='download'], a[href*='audio'], img[src*='save'],"
-                " img[src*='disk']"
+            # Localiza o botão salvar (<img title="Salvar" ...>)
+            btn_salvar = coluna_audio.locator(
+                "img[title*='alvar'], img[src*='save'], a:has(img[src*='save'])"
             ).first
-            if not (btn_salvar.count() > 0 and btn_salvar.is_visible()):
-              div_balao = coluna_audio.locator("div")
-              if div_balao.count() > 0:
-                btn_salvar = div_balao.locator("a, img").last
+            try:
+              btn_salvar.wait_for(state="attached", timeout=4000)
+            except Exception:
+              btn_salvar = ctx.locator(
+                  "img[title*='alvar'], img[src*='save'],"
+                  " a:has(img[src*='save'])"
+              ).last
 
-            # Checa se há link direto para download
             href = ""
-            if btn_salvar.count() > 0:
-              href = btn_salvar.get_attribute(
-                  "href"
-              ) or btn_salvar.locator("xpath=..").get_attribute("href")
+            try:
+              href = btn_salvar.evaluate(
+                  "el => (el.closest('a') ? el.closest('a').href : '') ||"
+                  " el.src || ''"
+              )
+            except Exception:
+              pass
 
-            if href and (
-                "http" in href
-                or ".php" in href
-                or ".gsm" in href
-                or ".wav" in href
+            if (
+                href
+                and (
+                    ".php" in href
+                    or "download" in href
+                    or ".gsm" in href
+                    or ".wav" in href
+                )
+                and not href.endswith(".gif")
             ):
               url_download = (
                   href
@@ -496,20 +486,18 @@ def processar_chamadas(page, model_whisper):
                   else f"{PBX_URL.rstrip('/')}/{href.lstrip('/')}"
               )
               log_msg(
-                  f"[{nome} #{idx}] Baixando áudio via link direto:"
+                  f"[{nome} #{idx}] Baixando áudio via requisição direta:"
                   f" {url_download}"
               )
               resp = page.request.get(url_download)
               with open(caminho_gsm, "wb") as f_out:
                 f_out.write(resp.body())
             else:
-              log_msg(f"[{nome} #{idx}] Interceptando evento de download...")
+              log_msg(f"[{nome} #{idx}] Disparando download via JS...")
               with page.expect_download(timeout=15000) as download_info:
-                if btn_salvar.count() > 0 and btn_salvar.is_visible():
-                  btn_salvar.click(force=True)
-                else:
-                  coluna_audio.locator("img").last.click(force=True)
-
+                btn_salvar.evaluate(
+                    "el => (el.closest('a') ? el.closest('a') : el).click()"
+                )
               download = download_info.value
               download.save_as(caminho_gsm)
 
@@ -525,6 +513,9 @@ def processar_chamadas(page, model_whisper):
             else:
               log_msg(f"[{nome} #{idx}] Arquivo de áudio baixado vazio.")
               transcricao = "Gravação com tamanho 0 bytes"
+
+            # Fecha o balão para a próxima linha
+            ctx.keyboard.press("Escape")
 
           except Exception as e:
             log_msg(f"[{nome} #{idx}] Erro ao baixar/transcrever áudio: {e}")
