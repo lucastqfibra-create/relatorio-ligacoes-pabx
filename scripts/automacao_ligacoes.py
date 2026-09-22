@@ -187,11 +187,21 @@ def normalizar_data(data_str):
     if not data_str:
         return ""
     data_clean = data_str.strip()
+    
+    # Validação nova: se já estiver em formato de barra DD/MM/AAAA, retorna direto
+    if re.match(r"^\d{2}/\d{2}/\d{4}$", data_clean):
+        return data_clean
+        
     digitos = "".join(c for c in data_clean if c.isdigit())
+    
+    # Processa formatos apenas com dígitos (ex: 20260921 ou 21092026)
     if len(digitos) == 8:
-        if int(digitos[:4]) > 1900:
+        # Se os 4 primeiros dígitos forem o ano E os dígitos do meio forem um mês válido (<=12)
+        if int(digitos[:4]) > 1900 and int(digitos[4:6]) <= 12:
             return f"{digitos[6:8]}/{digitos[4:6]}/{digitos[:4]}"
         return f"{digitos[0:2]}/{digitos[2:4]}/{digitos[4:8]}"
+        
+    # Processa formatos com hífen (ex: 2026-09-21)
     if "-" in data_clean:
         partes = data_clean.split("-")
         if len(partes) == 3:
@@ -199,6 +209,7 @@ def normalizar_data(data_str):
             if len(p_a) == 4:
                 return f"{p_c}/{p_b}/{p_a}"
             return f"{p_a}/{p_b}/{p_c}"
+            
     return data_clean
 
 def definir_data_consulta():
